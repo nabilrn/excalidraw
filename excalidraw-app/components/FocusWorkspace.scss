@@ -1,0 +1,335 @@
+.focus-workspace {
+  --focus-border: var(--default-border-color, #d6d6d6);
+  --focus-bg: var(--island-bg-color, #fff);
+  --focus-muted: var(--color-gray-60, #777);
+  --focus-hover: var(--button-hover-bg, #f1f0ff);
+
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  font-family: var(--ui-font, Assistant, sans-serif);
+  pointer-events: none;
+}
+
+.focus-workspace button,
+.focus-workspace input,
+.focus-workspace label,
+.focus-workspace__panel {
+  pointer-events: auto;
+}
+
+.focus-workspace__launcher {
+  min-width: 72px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--focus-border);
+  border-radius: 10px;
+  background: var(--focus-bg);
+  color: var(--text-primary-color, #1b1b1f);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 12%);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.focus-workspace__launcher:hover {
+  background: var(--focus-hover);
+}
+
+.focus-workspace__panel {
+  position: absolute;
+  right: 0;
+  bottom: 50px;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(680px, calc(100vh - 90px));
+  overflow: hidden;
+  border: 1px solid var(--focus-border);
+  border-radius: 14px;
+  background: var(--focus-bg);
+  color: var(--text-primary-color, #1b1b1f);
+  box-shadow: 0 16px 45px rgb(0 0 0 / 20%);
+}
+
+.focus-workspace__header,
+.focus-workspace__section-title,
+.focus-workspace__timer-actions,
+.focus-workspace__presets,
+.focus-workspace__add-row,
+.focus-workspace__task,
+.focus-workspace__diagram {
+  display: flex;
+  align-items: center;
+}
+
+.focus-workspace__header {
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--focus-border);
+}
+
+.focus-workspace__header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.focus-workspace__header span,
+.focus-workspace__section-title span,
+.focus-workspace__diagram-title span,
+.focus-workspace__status,
+.focus-workspace__empty {
+  color: var(--focus-muted);
+  font-size: 12px;
+}
+
+.focus-workspace__header button,
+.focus-workspace__delete {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.focus-workspace__header button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.focus-workspace__header button:hover,
+.focus-workspace__delete:hover {
+  background: var(--focus-hover);
+}
+
+.focus-workspace__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--focus-border);
+}
+
+.focus-workspace__tabs button,
+.focus-workspace__timer-actions button,
+.focus-workspace__presets button,
+.focus-workspace__add-row button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.focus-workspace__tabs button {
+  padding: 8px;
+}
+
+.focus-workspace__tabs button[data-active="true"] {
+  border-color: var(--focus-border);
+  background: var(--focus-hover);
+  font-weight: 600;
+}
+
+.focus-workspace__content {
+  max-height: calc(min(680px, 100vh - 90px) - 105px);
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.focus-workspace__content section + section {
+  margin-top: 18px;
+}
+
+.focus-workspace__timer {
+  padding: 16px;
+  border: 1px solid var(--focus-border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.focus-workspace__eyebrow {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--focus-muted);
+  font-size: 12px;
+}
+
+.focus-workspace__clock {
+  margin: 8px 0 12px;
+  font-size: 44px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.focus-workspace__timer-actions {
+  justify-content: center;
+  gap: 8px;
+}
+
+.focus-workspace__timer-actions button {
+  min-width: 92px;
+  padding: 8px 12px;
+  border-color: var(--focus-border);
+}
+
+.focus-workspace__timer-actions button:first-child,
+.focus-workspace__add-row button {
+  background: var(--color-primary, #6965db);
+  color: #fff;
+}
+
+.focus-workspace__presets {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.focus-workspace__presets button,
+.focus-workspace__presets label {
+  padding: 5px 8px;
+  border: 1px solid var(--focus-border);
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.focus-workspace__presets label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.focus-workspace__presets input {
+  width: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.focus-workspace__section-title {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.focus-workspace__add-row {
+  gap: 8px;
+}
+
+.focus-workspace__add-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid var(--focus-border);
+  border-radius: 8px;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.focus-workspace__add-row input:focus {
+  border-color: var(--color-primary, #6965db);
+}
+
+.focus-workspace__add-row button {
+  padding: 9px 12px;
+}
+
+.focus-workspace__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.focus-workspace__task,
+.focus-workspace__diagram {
+  min-height: 42px;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--focus-border);
+  border-radius: 9px;
+}
+
+.focus-workspace__task[data-selected="true"] {
+  border-color: var(--color-primary, #6965db);
+}
+
+.focus-workspace__task-title,
+.focus-workspace__diagram-title {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.focus-workspace__task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-workspace__task-title[data-completed="true"] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.focus-workspace__diagram-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.focus-workspace__diagram-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-workspace__delete {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  font-size: 18px;
+}
+
+.focus-workspace__status {
+  margin: 8px 0 0;
+}
+
+.focus-workspace__empty {
+  margin: 8px 0;
+  text-align: center;
+}
+
+@media (max-width: 730px) {
+  .focus-workspace {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .focus-workspace__panel {
+    bottom: 48px;
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 72px);
+  }
+
+  .focus-workspace__content {
+    max-height: calc(100vh - 177px);
+  }
+}

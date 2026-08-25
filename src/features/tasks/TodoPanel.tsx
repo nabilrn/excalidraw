@@ -35,6 +35,17 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
       });
   }, []);
 
+  useEffect(() => {
+    const diagramIds = new Set(diagrams.map((diagram) => diagram.id));
+    setTasks((current) =>
+      current.map((task) =>
+        task.linked_diagram_id && !diagramIds.has(task.linked_diagram_id)
+          ? { ...task, linked_diagram_id: null }
+          : task,
+      ),
+    );
+  }, [diagrams]);
+
   const handleAdd = async () => {
     const trimmed = title.trim();
     if (!trimmed) {

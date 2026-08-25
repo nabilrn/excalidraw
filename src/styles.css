@@ -19,7 +19,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -35,14 +36,22 @@ button {
   width: 100vw;
   height: 100vh;
   overflow: auto;
-  padding: 40px;
+  padding: 40px 40px 110px;
   background: #f7f7f7;
 }
 
 .workspace-header,
 .workspace-toolbar,
 .editor-header,
-.card-actions {
+.card-actions,
+.panel-heading,
+.task-row,
+.task-composer,
+.task-meta,
+.session-row,
+.focus-timer-dock,
+.focus-actions,
+.section-heading {
   display: flex;
   align-items: center;
 }
@@ -79,7 +88,11 @@ button {
 .text-button,
 .card-actions button,
 .diagram-title,
-.editor-title {
+.editor-title,
+.task-check,
+.focus-button,
+.icon-button,
+.focus-actions button {
   border: 0;
   cursor: pointer;
 }
@@ -95,6 +108,212 @@ button {
 
 .primary-button:hover {
   background: #303030;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  max-width: 1180px;
+  margin: 0 auto 34px;
+}
+
+.dashboard-panel {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dedede;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
+}
+
+.panel-heading {
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel-heading h2,
+.section-heading h2 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.task-composer {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.task-composer input,
+.task-composer select,
+.task-meta select {
+  min-height: 38px;
+  border: 1px solid #d4d4d4;
+  border-radius: 9px;
+  background: #fff;
+  outline: none;
+}
+
+.task-composer input {
+  min-width: 0;
+  flex: 1;
+  padding: 0 12px;
+}
+
+.task-composer select {
+  padding: 0 9px;
+}
+
+.task-composer .primary-button {
+  min-height: 38px;
+}
+
+.task-list,
+.session-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-row {
+  min-width: 0;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #eeeeee;
+}
+
+.task-row:first-child,
+.session-row:first-child {
+  border-top: 0;
+}
+
+.task-row.is-completed .task-main strong {
+  color: #a3a3a3;
+  text-decoration: line-through;
+}
+
+.task-check {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #a3a3a3;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.task-row.is-completed .task-check {
+  border-color: #171717;
+  background: #171717;
+  color: #fff;
+}
+
+.task-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.task-main strong {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-meta {
+  gap: 8px;
+  margin-top: 5px;
+  color: #737373;
+  font-size: 12px;
+}
+
+.task-meta select {
+  max-width: 180px;
+  min-height: 26px;
+  padding: 0 6px;
+  color: #525252;
+  font-size: 11px;
+}
+
+.focus-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.focus-button:hover:not(:disabled) {
+  background: #e5e5e5;
+}
+
+.focus-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.icon-button {
+  padding: 4px;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.inline-error {
+  margin-bottom: 10px;
+  color: #991b1b;
+  font-size: 12px;
+}
+
+.panel-empty {
+  margin: 24px 0;
+  color: #737373;
+  font-size: 13px;
+  text-align: center;
+}
+
+.session-row {
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid #eeeeee;
+}
+
+.session-row strong {
+  font-size: 13px;
+}
+
+.session-row .muted {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.session-duration {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: #404040;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cancelled-label {
+  margin-top: 2px;
+  color: #a3a3a3;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.section-heading {
+  max-width: 1180px;
+  margin: 0 auto 12px;
+  justify-content: space-between;
 }
 
 .workspace-toolbar {
@@ -114,7 +333,10 @@ button {
   background: #fff;
 }
 
-.search-input:focus {
+.search-input:focus,
+.task-composer input:focus,
+.task-composer select:focus,
+.task-meta select:focus {
   border-color: #737373;
   box-shadow: 0 0 0 3px rgb(0 0 0 / 0.06);
 }
@@ -192,6 +414,7 @@ button {
   text-decoration: underline;
 }
 
+.danger-text,
 .card-actions .danger-text {
   color: #b91c1c;
 }
@@ -283,9 +506,83 @@ button {
   flex: 1;
 }
 
+.focus-timer-dock {
+  position: fixed;
+  z-index: 100;
+  bottom: 18px;
+  left: 50%;
+  min-width: min(520px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+  gap: 18px;
+  padding: 10px 12px 10px 14px;
+  border: 1px solid #d4d4d4;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.focus-timer-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.focus-timer-copy strong {
+  display: block;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-label {
+  display: block;
+  margin-bottom: 2px;
+  color: #737373;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.focus-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.focus-actions {
+  gap: 6px;
+}
+
+.focus-actions button {
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: #f1f1f1;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.focus-actions button:hover {
+  background: #e6e6e6;
+}
+
+.focus-actions .danger-text {
+  background: #fff1f1;
+}
+
+@media (max-width: 840px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .workspace-shell {
-    padding: 24px 18px;
+    padding: 24px 18px 130px;
   }
 
   .workspace-header {
@@ -299,6 +596,42 @@ button {
   }
 
   .search-input {
+    width: 100%;
+  }
+
+  .task-composer {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .task-composer input {
+    flex-basis: 100%;
+  }
+
+  .task-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .task-main {
+    width: calc(100% - 40px);
+  }
+
+  .focus-button {
+    margin-left: 30px;
+  }
+
+  .focus-timer-dock {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .focus-timer-copy {
+    flex-basis: calc(100% - 100px);
+  }
+
+  .focus-actions {
     width: 100%;
   }
 }

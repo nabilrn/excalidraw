@@ -10,6 +10,10 @@ import {
   type DiagramRecord,
 } from "./features/diagrams/diagramRepository";
 import { deserializeScene } from "./features/diagrams/sceneStorage";
+import { FocusTimerDock } from "./features/focus/FocusTimerDock";
+import { SessionHistory } from "./features/focus/SessionHistory";
+import { useFocusTimer } from "./features/focus/useFocusTimer";
+import { TodoPanel } from "./features/tasks/TodoPanel";
 
 type View = "workspace" | "editor";
 type SaveStatus = "Saved" | "Unsaved" | "Saving…";
@@ -32,6 +36,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("Saved");
 
+  const focus = useFocusTimer();
   const saveTimerRef = useRef<number | null>(null);
   const latestSceneRef = useRef<string | null>(null);
 
@@ -209,85 +214,139 @@ export default function App() {
     }
   }, []);
 
+  const handleStartFocus = useCallback(
+    async (
+      taskId: string,
+      seconds: number,
+      linkedDiagramId: string | null,
+    ) => {
+      const started = await focus.start(taskId, seconds);
+      if (!started || !linkedDiagramId) {
+        return;
+      }
+
+      const diagram = diagrams.find((item) => item.id === linkedDiagramId);
+      if (diagram) {
+        await openDiagram(diagram);
+      }
+    },
+    [diagrams, focus.start, openDiagram],
+  );
+
+  const timerDock = (
+    <FocusTimerDock
+      session={focus.session}
+      onPause={focus.pause}
+      onResume={focus.resume}
+      onFinish={focus.finish}
+      onCancel={focus.cancel}
+    />
+  );
+
   if (view === "workspace") {
     return (
-      <main className="workspace-shell">
-        <header className="workspace-header">
-          <div>
-            <p className="eyebrow">Local workspace</p>
-            <h1>FocusCanvas</h1>
-            <p className="muted">Your diagrams stay on this device.</p>
-          </div>
-          <button className="primary-button" onClick={handleCreateDiagram}>
-            + New diagram
-          </button>
-        </header>
+      <>
+        <main className="workspace-shell">
+          <header className="workspace-header">
+            <div>
+              <p className="eyebrow">Local workspace</p>
+              <h1>FocusCanvas</h1>
+              <p className="muted">
+                Tasks, focus sessions, and diagrams stay on this device.
+              </p>
+            </div>
+            <button className="primary-button" onClick={handleCreateDiagram}>
+              + New diagram
+            </button>
+          </header>
 
-        <section className="workspace-toolbar">
-          <input
-            className="search-input"
-            type="search"
-            placeholder="Search diagrams"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <span className="muted">
-            {diagrams.length} {diagrams.length === 1 ? "diagram" : "diagrams"}
-          </span>
-        </section>
+          {(error || focus.error) && (
+            <div className="error-banner">{error ?? focus.error}</div>
+          )}
 
-        {error && <div className="error-banner">{error}</div>}
-
-        {loading ? (
-          <div className="empty-state">Loading workspace…</div>
-        ) : filteredDiagrams.length === 0 ? (
-          <div className="empty-state">
-            <h2>{search ? "No matching diagrams" : "No diagrams yet"}</h2>
-            <p>
-              {search
-                ? "Try another search."
-                : "Create your first diagram and it will appear here automatically."}
-            </p>
-            {!search && (
-              <button className="primary-button" onClick={handleCreateDiagram}>
-                Create diagram
-              </button>
-            )}
-          </div>
-        ) : (
-          <section className="diagram-grid" aria-label="Recent diagrams">
-            {filteredDiagrams.map((diagram) => (
-              <article className="diagram-card" key={diagram.id}>
-                <button
-                  className="diagram-preview"
-                  onClick={() => void openDiagram(diagram)}
-                  aria-label={`Open ${diagram.name}`}
-                >
-                  <span>Open canvas</span>
-                </button>
-                <div className="diagram-card-body">
-                  <button
-                    className="diagram-title"
-                    onClick={() => void openDiagram(diagram)}
-                  >
-                    {diagram.name}
-                  </button>
-                  <p className="muted">{formatUpdatedAt(diagram.updated_at)}</p>
-                  <div className="card-actions">
-                    <button onClick={() => void handleRename(diagram)}>Rename</button>
-                    <button
-                      className="danger-text"
-                      onClick={() => void handleDelete(diagram)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
+          <section className="dashboard-grid">
+            <TodoPanel
+              diagrams={diagrams}
+              focusActive={Boolean(focus.session)}
+              onStartFocus={handleStartFocus}
+            />
+            <SessionHistory revision={focus.historyRevision} />
           </section>
-        )}
-      </main>
+
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Workspace</p>
+              <h2>Recent diagrams</h2>
+            </div>
+          </div>
+
+          <section className="workspace-toolbar">
+            <input
+              className="search-input"
+              type="search"
+              placeholder="Search diagrams"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <span className="muted">
+              {diagrams.length} {diagrams.length === 1 ? "diagram" : "diagrams"}
+            </span>
+          </section>
+
+          {loading ? (
+            <div className="empty-state">Loading workspace…</div>
+          ) : filteredDiagrams.length === 0 ? (
+            <div className="empty-state">
+              <h2>{search ? "No matching diagrams" : "No diagrams yet"}</h2>
+              <p>
+                {search
+                  ? "Try another search."
+                  : "Create your first diagram and it will appear here automatically."}
+              </p>
+              {!search && (
+                <button className="primary-button" onClick={handleCreateDiagram}>
+                  Create diagram
+                </button>
+              )}
+            </div>
+          ) : (
+            <section className="diagram-grid" aria-label="Recent diagrams">
+              {filteredDiagrams.map((diagram) => (
+                <article className="diagram-card" key={diagram.id}>
+                  <button
+                    className="diagram-preview"
+                    onClick={() => void openDiagram(diagram)}
+                    aria-label={`Open ${diagram.name}`}
+                  >
+                    <span>Open canvas</span>
+                  </button>
+                  <div className="diagram-card-body">
+                    <button
+                      className="diagram-title"
+                      onClick={() => void openDiagram(diagram)}
+                    >
+                      {diagram.name}
+                    </button>
+                    <p className="muted">{formatUpdatedAt(diagram.updated_at)}</p>
+                    <div className="card-actions">
+                      <button onClick={() => void handleRename(diagram)}>
+                        Rename
+                      </button>
+                      <button
+                        className="danger-text"
+                        onClick={() => void handleDelete(diagram)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </section>
+          )}
+        </main>
+        {timerDock}
+      </>
     );
   }
 
@@ -296,38 +355,46 @@ export default function App() {
   }
 
   return (
-    <main className="editor-shell">
-      <header className="editor-header">
-        <button className="text-button" onClick={() => void handleBackToWorkspace()}>
-          ← Workspace
-        </button>
-        <button
-          className="editor-title"
-          onClick={() => void handleRename(activeDiagram)}
-          title="Rename diagram"
-        >
-          {activeDiagram.name}
-        </button>
-        <span
-          className={`save-status ${saveStatus === "Unsaved" ? "is-unsaved" : ""}`}
-        >
-          {saveStatus}
-        </span>
-      </header>
+    <>
+      <main className="editor-shell">
+        <header className="editor-header">
+          <button
+            className="text-button"
+            onClick={() => void handleBackToWorkspace()}
+          >
+            ← Workspace
+          </button>
+          <button
+            className="editor-title"
+            onClick={() => void handleRename(activeDiagram)}
+            title="Rename diagram"
+          >
+            {activeDiagram.name}
+          </button>
+          <span
+            className={`save-status ${
+              saveStatus === "Unsaved" ? "is-unsaved" : ""
+            }`}
+          >
+            {saveStatus}
+          </span>
+        </header>
 
-      <section className="canvas-shell">
-        <Excalidraw
-          key={activeDiagram.id}
-          initialData={initialScene}
-          name={activeDiagram.name}
-          autoFocus={true}
-          onChange={(elements, appState, files) => {
-            scheduleAutosave(
-              serializeAsJSON(elements, appState, files, "local"),
-            );
-          }}
-        />
-      </section>
-    </main>
+        <section className="canvas-shell">
+          <Excalidraw
+            key={activeDiagram.id}
+            initialData={initialScene}
+            name={activeDiagram.name}
+            autoFocus={true}
+            onChange={(elements, appState, files) => {
+              scheduleAutosave(
+                serializeAsJSON(elements, appState, files, "local"),
+              );
+            }}
+          />
+        </section>
+      </main>
+      {timerDock}
+    </>
   );
 }

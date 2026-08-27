@@ -4,15 +4,16 @@ import type { DiagramRecord } from "../diagrams/diagramRepository";
 import {
   createTask,
   deleteTask,
-  linkTaskToDiagram,
   listTasks,
   setTaskCompleted,
+  setTaskEstimatedMinutes,
   type TaskRecord,
 } from "./taskRepository";
 
 type Props = {
   diagrams: DiagramRecord[];
   focusActive: boolean;
+  onTasksChange?: (tasks: TaskRecord[]) => void;
   onStartFocus: (
     taskId: string,
     seconds: number,
@@ -20,10 +21,19 @@ type Props = {
   ) => Promise<void>;
 };
 
-export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
+const normalizeMinutes = (value: number) =>
+  Number.isFinite(value) && value > 0 ? Math.max(1, Math.floor(value)) : 1;
+
+export function TodoPanel({
+  diagrams,
+  focusActive,
+  onTasksChange,
+  onStartFocus,
+}: Props) {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [title, setTitle] = useState("");
-  const [duration, setDuration] = useState(45);
+  const [durationMode, setDurationMode] = useState<"25" | "45" | "60" | "custom">("45");
+  const [customDuration, setCustomDuration] = useState(120);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +44,10 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
         setError("Could not load tasks.");
       });
   }, []);
+
+  useEffect(() => {
+    onTasksChange?.(tasks);
+  }, [onTasksChange, tasks]);
 
   useEffect(() => {
     const diagramIds = new Set(diagrams.map((diagram) => diagram.id));
@@ -52,8 +66,12 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
       return;
     }
 
+    const minutes = normalizeMinutes(
+      durationMode === "custom" ? customDuration : Number(durationMode),
+    );
+
     try {
-      const task = await createTask(trimmed, duration);
+      const task = await createTask(trimmed, minutes);
       setTasks((current) => [task, ...current]);
       setTitle("");
       setError(null);
@@ -85,7 +103,7 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
   };
 
   const handleDelete = async (task: TaskRecord) => {
-    if (!window.confirm(`Delete “${task.title}”?`)) {
+    if (!window.confirm(`Delete “${task.title}”? Diagrams in this group will become ungrouped.`)) {
       return;
     }
 
@@ -98,18 +116,27 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
     }
   };
 
-  const handleDiagramLink = async (task: TaskRecord, diagramId: string) => {
-    const nextId = diagramId || null;
+  const handleDurationDraft = (taskId: string, value: number) => {
+    if (!Number.isFinite(value) || value < 1) {
+      return;
+    }
+
+    const minutes = normalizeMinutes(value);
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === taskId ? { ...task, estimated_minutes: minutes } : task,
+      ),
+    );
+  };
+
+  const handleDurationCommit = async (taskId: string, value: number) => {
+    const minutes = normalizeMinutes(value);
     try {
-      await linkTaskToDiagram(task.id, nextId);
-      setTasks((current) =>
-        current.map((item) =>
-          item.id === task.id ? { ...item, linked_diagram_id: nextId } : item,
-        ),
-      );
+      await setTaskEstimatedMinutes(taskId, minutes);
+      setError(null);
     } catch (cause) {
       console.error(cause);
-      setError("Could not link diagram.");
+      setError("Could not update focus duration.");
     }
   };
 
@@ -138,15 +165,31 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
           aria-label="Task title"
         />
         <select
-          value={duration}
-          onChange={(event) => setDuration(Number(event.target.value))}
+          value={durationMode}
+          onChange={(event) =>
+            setDurationMode(event.target.value as "25" | "45" | "60" | "custom")
+          }
           aria-label="Estimated focus duration"
         >
-          <option value={25}>25m</option>
-          <option value={45}>45m</option>
-          <option value={60}>60m</option>
-          <option value={90}>90m</option>
+          <option value="25">25m</option>
+          <option value="45">45m</option>
+          <option value="60">60m</option>
+          <option value="custom">Custom</option>
         </select>
+        {durationMode === "custom" && (
+          <input
+            className="custom-duration-input"
+            type="number"
+            min="1"
+            step="1"
+            value={customDuration}
+            onChange={(event) =>
+              setCustomDuration(normalizeMinutes(Number(event.target.value)))
+            }
+            aria-label="Custom focus duration in minutes"
+            title="Custom focus duration in minutes"
+          />
+        )}
         <button className="primary-button" onClick={() => void handleAdd()}>
           Add
         </button>
@@ -161,6 +204,13 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
           tasks.map((task) => {
             const completed = task.status === "completed";
             const minutes = task.estimated_minutes ?? 45;
+            const taskDiagrams = diagrams.filter(
+              (diagram) => diagram.task_id === task.id,
+            );
+            const legacyDiagram = task.linked_diagram_id
+              ? diagrams.find((diagram) => diagram.id === task.linked_diagram_id)
+              : null;
+            const focusDiagramId = taskDiagrams[0]?.id ?? legacyDiagram?.id ?? null;
 
             return (
               <article
@@ -178,21 +228,27 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
                 <div className="task-main">
                   <strong>{task.title}</strong>
                   <div className="task-meta">
-                    <span>{minutes} min</span>
-                    <select
-                      value={task.linked_diagram_id ?? ""}
+                    <input
+                      className="task-duration-input"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={minutes}
                       onChange={(event) =>
-                        void handleDiagramLink(task, event.target.value)
+                        handleDurationDraft(task.id, Number(event.target.value))
                       }
-                      aria-label={`Diagram linked to ${task.title}`}
-                    >
-                      <option value="">No diagram</option>
-                      {diagrams.map((diagram) => (
-                        <option value={diagram.id} key={diagram.id}>
-                          {diagram.name}
-                        </option>
-                      ))}
-                    </select>
+                      onBlur={(event) =>
+                        void handleDurationCommit(
+                          task.id,
+                          Number(event.currentTarget.value),
+                        )
+                      }
+                      aria-label={`Focus duration for ${task.title} in minutes`}
+                    />
+                    <span>min</span>
+                    <span>
+                      {taskDiagrams.length} {taskDiagrams.length === 1 ? "diagram" : "diagrams"}
+                    </span>
                   </div>
                 </div>
 
@@ -201,14 +257,10 @@ export function TodoPanel({ diagrams, focusActive, onStartFocus }: Props) {
                     className="focus-button"
                     disabled={focusActive}
                     onClick={() =>
-                      void onStartFocus(
-                        task.id,
-                        minutes * 60,
-                        task.linked_diagram_id,
-                      )
+                      void onStartFocus(task.id, minutes * 60, focusDiagramId)
                     }
                   >
-                    {task.linked_diagram_id ? "Focus + open" : "Focus"}
+                    {focusDiagramId ? "Focus + open" : "Focus"}
                   </button>
                 )}
 

@@ -80,6 +80,16 @@ export async function setTaskCompleted(id: string, completed: boolean) {
   );
 }
 
+export async function setTaskEstimatedMinutes(id: string, minutes: number) {
+  const database = await getDatabase();
+  await database.execute(
+    `UPDATE tasks
+     SET estimated_minutes = ?, updated_at = ?
+     WHERE id = ?`,
+    [Math.max(1, Math.floor(minutes)), Date.now(), id],
+  );
+}
+
 export async function deleteTask(id: string) {
   const database = await getDatabase();
   await database.execute("DELETE FROM tasks WHERE id = ?", [id]);

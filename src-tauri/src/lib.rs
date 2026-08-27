@@ -68,6 +68,32 @@ pub fn run() {
             "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "group_diagrams_by_main_task",
+            sql: r#"
+                ALTER TABLE diagrams
+                    ADD COLUMN task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL;
+
+                UPDATE diagrams
+                SET task_id = (
+                    SELECT tasks.id
+                    FROM tasks
+                    WHERE tasks.linked_diagram_id = diagrams.id
+                    LIMIT 1
+                )
+                WHERE task_id IS NULL
+                  AND EXISTS (
+                    SELECT 1
+                    FROM tasks
+                    WHERE tasks.linked_diagram_id = diagrams.id
+                  );
+
+                CREATE INDEX IF NOT EXISTS idx_diagrams_task_id
+                    ON diagrams(task_id);
+            "#,
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Excalidraw, serializeAsJSON } from "@excalidraw/excalidraw";
 
 import {
+  assignDiagramToTask,
   createDiagram,
   deleteDiagram,
   listDiagrams,
@@ -14,11 +15,18 @@ import { FocusTimerDock } from "./features/focus/FocusTimerDock";
 import { SessionHistory } from "./features/focus/SessionHistory";
 import { useFocusTimer } from "./features/focus/useFocusTimer";
 import { TodoPanel } from "./features/tasks/TodoPanel";
+import type { TaskRecord } from "./features/tasks/taskRepository";
 
 type View = "workspace" | "editor";
 type SaveStatus = "Saved" | "Unsaved" | "Saving…";
 
 type InitialScene = Awaited<ReturnType<typeof deserializeScene>>;
+
+type DiagramGroup = {
+  id: string;
+  title: string;
+  diagrams: DiagramRecord[];
+};
 
 const formatUpdatedAt = (timestamp: number) =>
   new Intl.DateTimeFormat(undefined, {
@@ -29,6 +37,7 @@ const formatUpdatedAt = (timestamp: number) =>
 export default function App() {
   const [view, setView] = useState<View>("workspace");
   const [diagrams, setDiagrams] = useState<DiagramRecord[]>([]);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [activeDiagram, setActiveDiagram] = useState<DiagramRecord | null>(null);
   const [initialScene, setInitialScene] = useState<InitialScene | null>(null);
   const [search, setSearch] = useState("");
@@ -75,6 +84,41 @@ export default function App() {
       diagram.name.toLowerCase().includes(query),
     );
   }, [diagrams, search]);
+
+  const diagramGroups = useMemo<DiagramGroup[]>(() => {
+    const taskIds = new Set(tasks.map((task) => task.id));
+    const byTask = new Map<string, DiagramRecord[]>();
+
+    for (const diagram of filteredDiagrams) {
+      if (diagram.task_id && taskIds.has(diagram.task_id)) {
+        const bucket = byTask.get(diagram.task_id) ?? [];
+        bucket.push(diagram);
+        byTask.set(diagram.task_id, bucket);
+      }
+    }
+
+    const grouped = tasks
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        diagrams: byTask.get(task.id) ?? [],
+      }))
+      .filter((group) => group.diagrams.length > 0);
+
+    const ungrouped = filteredDiagrams.filter(
+      (diagram) => !diagram.task_id || !taskIds.has(diagram.task_id),
+    );
+
+    if (ungrouped.length > 0) {
+      grouped.push({
+        id: "ungrouped",
+        title: "Ungrouped",
+        diagrams: ungrouped,
+      });
+    }
+
+    return grouped;
+  }, [filteredDiagrams, tasks]);
 
   const openDiagram = useCallback(async (diagram: DiagramRecord) => {
     setLoading(true);
@@ -198,6 +242,32 @@ export default function App() {
     [],
   );
 
+  const handleDiagramTaskChange = useCallback(
+    async (diagram: DiagramRecord, taskId: string) => {
+      const nextTaskId = taskId || null;
+
+      try {
+        const updatedAt = await assignDiagramToTask(diagram.id, nextTaskId);
+        setDiagrams((current) =>
+          current.map((item) =>
+            item.id === diagram.id
+              ? { ...item, task_id: nextTaskId, updated_at: updatedAt }
+              : item,
+          ),
+        );
+        setActiveDiagram((current) =>
+          current?.id === diagram.id
+            ? { ...current, task_id: nextTaskId, updated_at: updatedAt }
+            : current,
+        );
+      } catch (cause) {
+        console.error(cause);
+        setError("Could not move this diagram to the selected task.");
+      }
+    },
+    [],
+  );
+
   const handleDelete = useCallback(async (diagram: DiagramRecord) => {
     if (!window.confirm(`Delete “${diagram.name}”? This cannot be undone.`)) {
       return;
@@ -268,6 +338,7 @@ export default function App() {
             <TodoPanel
               diagrams={diagrams}
               focusActive={Boolean(focus.session)}
+              onTasksChange={setTasks}
               onStartFocus={handleStartFocus}
             />
             <SessionHistory revision={focus.historyRevision} />
@@ -276,7 +347,7 @@ export default function App() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">Workspace</p>
-              <h2>Recent diagrams</h2>
+              <h2>Diagrams by main task</h2>
             </div>
           </div>
 
@@ -310,37 +381,82 @@ export default function App() {
               )}
             </div>
           ) : (
-            <section className="diagram-grid" aria-label="Recent diagrams">
-              {filteredDiagrams.map((diagram) => (
-                <article className="diagram-card" key={diagram.id}>
-                  <button
-                    className="diagram-preview"
-                    onClick={() => void openDiagram(diagram)}
-                    aria-label={`Open ${diagram.name}`}
-                  >
-                    <span>Open canvas</span>
-                  </button>
-                  <div className="diagram-card-body">
-                    <button
-                      className="diagram-title"
-                      onClick={() => void openDiagram(diagram)}
-                    >
-                      {diagram.name}
-                    </button>
-                    <p className="muted">{formatUpdatedAt(diagram.updated_at)}</p>
-                    <div className="card-actions">
-                      <button onClick={() => void handleRename(diagram)}>
-                        Rename
-                      </button>
-                      <button
-                        className="danger-text"
-                        onClick={() => void handleDelete(diagram)}
-                      >
-                        Delete
-                      </button>
-                    </div>
+            <section className="diagram-groups" aria-label="Diagrams grouped by main task">
+              {diagramGroups.map((group) => (
+                <section className="diagram-group" key={group.id}>
+                  <div className="diagram-group-heading">
+                    <h3>{group.title}</h3>
+                    <span className="muted">
+                      {group.diagrams.length} {group.diagrams.length === 1 ? "diagram" : "diagrams"}
+                    </span>
                   </div>
-                </article>
+
+                  <div className="diagram-grid">
+                    {group.diagrams.map((diagram) => {
+                      const validTaskId = tasks.some(
+                        (task) => task.id === diagram.task_id,
+                      )
+                        ? diagram.task_id ?? ""
+                        : "";
+
+                      return (
+                        <article className="diagram-card" key={diagram.id}>
+                          <button
+                            className="diagram-preview"
+                            onClick={() => void openDiagram(diagram)}
+                            aria-label={`Open ${diagram.name}`}
+                          >
+                            <span>Open canvas</span>
+                          </button>
+                          <div className="diagram-card-body">
+                            <button
+                              className="diagram-title"
+                              onClick={() => void openDiagram(diagram)}
+                            >
+                              {diagram.name}
+                            </button>
+                            <p className="muted">
+                              {formatUpdatedAt(diagram.updated_at)}
+                            </p>
+
+                            <label className="diagram-task-field">
+                              <span>Main task</span>
+                              <select
+                                value={validTaskId}
+                                onChange={(event) =>
+                                  void handleDiagramTaskChange(
+                                    diagram,
+                                    event.target.value,
+                                  )
+                                }
+                                aria-label={`Main task for ${diagram.name}`}
+                              >
+                                <option value="">Ungrouped</option>
+                                {tasks.map((task) => (
+                                  <option value={task.id} key={task.id}>
+                                    {task.title}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <div className="card-actions">
+                              <button onClick={() => void handleRename(diagram)}>
+                                Rename
+                              </button>
+                              <button
+                                className="danger-text"
+                                onClick={() => void handleDelete(diagram)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
               ))}
             </section>
           )}

@@ -1,0 +1,298 @@
+:root {
+  --utility-font-scale: 1;
+}
+
+.utility-settings-launcher {
+  order: 1;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--sketch-radius);
+  background: transparent;
+  color: var(--text-mid);
+  font-size: calc(11px * var(--utility-font-scale));
+}
+
+.topbar-actions .primary-compact {
+  order: 2;
+}
+
+.utility-settings-launcher:hover,
+.utility-settings-launcher.is-active {
+  border-color: var(--border);
+  background: #f7f7f7;
+  color: var(--text);
+}
+
+.utility-settings-page {
+  position: fixed;
+  z-index: 180;
+  top: 40px;
+  right: 0;
+  bottom: 22px;
+  left: 0;
+  overflow-y: auto;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.utility-settings-shell {
+  width: min(720px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 46px 0 64px;
+}
+
+.utility-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px dashed var(--border-dark);
+}
+
+.utility-settings-heading p,
+.utility-setting-copy p,
+.utility-preview > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(10px * var(--utility-font-scale));
+  letter-spacing: 0.1em;
+}
+
+.utility-settings-heading h1 {
+  margin: 4px 0 5px;
+  font-family: "Caveat", cursive;
+  font-size: calc(28px * var(--utility-font-scale));
+  line-height: 1;
+}
+
+.utility-settings-heading span {
+  display: block;
+  max-width: 520px;
+  color: var(--muted);
+  font-size: calc(11px * var(--utility-font-scale));
+}
+
+.utility-settings-heading > button,
+.utility-setting-footer button {
+  border: 1px solid var(--border-dark);
+  border-radius: var(--sketch-radius);
+  background: #ffffff;
+  color: var(--text-mid);
+}
+
+.utility-settings-heading > button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: calc(10px * var(--utility-font-scale));
+}
+
+.utility-setting-card {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--sketch-radius);
+  background: #ffffff;
+  box-shadow: 2px 3px 0 rgb(0 0 0 / 0.04);
+}
+
+.utility-setting-copy {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.utility-setting-copy h2 {
+  margin: 3px 0 0;
+  font-family: "Caveat", cursive;
+  font-size: calc(22px * var(--utility-font-scale));
+}
+
+.utility-setting-copy > strong {
+  font-family: "Caveat", cursive;
+  font-size: calc(25px * var(--utility-font-scale));
+  line-height: 1;
+}
+
+.utility-font-slider {
+  width: 100%;
+  margin: 24px 0 3px;
+  accent-color: #111111;
+}
+
+.utility-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--faint);
+  font-size: calc(9px * var(--utility-font-scale));
+}
+
+.utility-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.utility-presets button {
+  display: flex;
+  min-height: 52px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--sketch-radius);
+  background: #ffffff;
+  text-align: left;
+}
+
+.utility-presets button:hover {
+  background: var(--row-hover);
+}
+
+.utility-presets button.is-active {
+  border-color: #111111;
+  background: var(--row-active);
+}
+
+.utility-presets strong {
+  font-family: "Caveat", cursive;
+  font-size: calc(14px * var(--utility-font-scale));
+}
+
+.utility-presets span {
+  color: var(--muted);
+  font-size: calc(9px * var(--utility-font-scale));
+}
+
+.utility-preview {
+  margin-top: 22px;
+  padding: 14px;
+  border-top: 1px dashed var(--border-dark);
+  border-bottom: 1px dashed var(--border-dark);
+  background: #fafafa;
+}
+
+.utility-preview-row {
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.utility-preview-check {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border-dark);
+  border-radius: 2px 3px 2px 3px / 3px 2px 3px 2px;
+}
+
+.utility-preview-row strong {
+  overflow: hidden;
+  font-size: calc(12px * var(--utility-font-scale));
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.utility-preview-row > span:last-child {
+  color: var(--faint);
+  font-family: "Caveat", cursive;
+  font-size: calc(11px * var(--utility-font-scale));
+}
+
+.utility-preview-timer {
+  margin-top: 12px;
+  font-family: "Caveat", cursive;
+  font-size: calc(34px * var(--utility-font-scale));
+  font-weight: 700;
+  line-height: 1;
+}
+
+.utility-setting-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.utility-setting-footer > span {
+  color: var(--faint);
+  font-size: calc(9px * var(--utility-font-scale));
+}
+
+.utility-setting-footer button {
+  height: 27px;
+  padding: 0 9px;
+  font-size: calc(10px * var(--utility-font-scale));
+}
+
+.utility-setting-footer button:hover,
+.utility-settings-heading > button:hover {
+  background: var(--row-hover);
+}
+
+/* Home/workspace typography only. Editor and Excalidraw are intentionally excluded. */
+.desktop-app .brand { font-size: calc(17px * var(--utility-font-scale)); }
+.desktop-app .top-tabs button { font-size: calc(12px * var(--utility-font-scale)); }
+.desktop-app .topbar-actions > span { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .primary-compact { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .desktop-error { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .sidebar-heading { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .sidebar-empty { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .task-name-button { font-size: calc(12px * var(--utility-font-scale)); }
+.desktop-app .duration-badge,
+.desktop-app .duration-suffix { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .task-delete { font-size: calc(14px * var(--utility-font-scale)); }
+.desktop-app .task-input,
+.desktop-app .minute-input { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .footer-add { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .section-label { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .task-detail-view > h1,
+.desktop-app .canvas-toolbar h1 { font-size: calc(24px * var(--utility-font-scale)); }
+.desktop-app .task-stats strong,
+.desktop-app .focus-summary strong { font-size: calc(20px * var(--utility-font-scale)); }
+.desktop-app .task-stats span,
+.desktop-app .focus-summary span { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .progress-copy { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .all-task-row { font-size: calc(12px * var(--utility-font-scale)); }
+.desktop-app .all-task-row strong { font-size: calc(12px * var(--utility-font-scale)); }
+.desktop-app .focus-empty-state strong { font-size: calc(18px * var(--utility-font-scale)); }
+.desktop-app .canvas-toolbar input { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .canvas-toolbar > span { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .group-heading strong,
+.desktop-app .group-heading span { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .canvas-name,
+.desktop-app .inline-rename { font-size: calc(13px * var(--utility-font-scale)); }
+.desktop-app .canvas-card-copy > span,
+.desktop-app .canvas-group-select { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .canvas-card-actions button { font-size: calc(13px * var(--utility-font-scale)); }
+.desktop-app .new-canvas-placeholder { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .new-canvas-placeholder span { font-size: calc(22px * var(--utility-font-scale)); }
+.desktop-app .focus-task-name { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .focus-time { font-size: calc(42px * var(--utility-font-scale)); }
+.desktop-app .focus-start,
+.desktop-app .focus-outline { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .no-focus-task strong { font-size: calc(32px * var(--utility-font-scale)); }
+.desktop-app .no-focus-task span { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .recent-row strong { font-size: calc(11px * var(--utility-font-scale)); }
+.desktop-app .recent-row span { font-size: calc(9px * var(--utility-font-scale)); }
+.desktop-app .recent-row b { font-size: calc(12px * var(--utility-font-scale)); }
+.desktop-app .recent-empty { font-size: calc(10px * var(--utility-font-scale)); }
+.desktop-app .statusbar { font-size: calc(10px * var(--utility-font-scale)); }
+
+@media (max-width: 620px) {
+  .utility-settings-shell {
+    width: calc(100% - 28px);
+    padding-top: 28px;
+  }
+
+  .utility-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -77,6 +77,10 @@ export async function renameCanvasGroup(id: string, name: string) {
 
 export async function deleteCanvasGroup(id: string) {
   const database = await getDatabase();
+  await database.execute(
+    "UPDATE diagrams SET group_id = NULL, updated_at = ? WHERE group_id = ?",
+    [Date.now(), id],
+  );
   await database.execute("DELETE FROM canvas_groups WHERE id = ?", [id]);
 }
 

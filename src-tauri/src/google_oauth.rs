@@ -9,6 +9,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tauri::Emitter;
 use url::Url;
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -19,6 +20,7 @@ const DRIVE_SCOPE: &str = "openid email profile https://www.googleapis.com/auth/
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(180);
 const KEYRING_SERVICE: &str = "com.nabilrn.focuscanvas.google-oauth";
 const KEYRING_USER: &str = "google-drive-refresh-token";
+const AUTH_URL_EVENT: &str = "focuscanvas-google-oauth-url";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -161,7 +163,8 @@ fn wait_for_authorization_code(
                 }
 
                 browser_response(&mut stream, true);
-                return code.ok_or_else(|| "Google OAuth did not return an authorization code.".to_string());
+                return code
+                    .ok_or_else(|| "Google OAuth did not return an authorization code.".to_string());
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(100));
@@ -261,7 +264,10 @@ async fn fetch_account(access_token: &str) -> Result<GoogleAccount, String> {
     Ok(GoogleAccount { email, name })
 }
 
-fn connection_from_token(token: GoogleTokenPayload, account: GoogleAccount) -> Result<GoogleAuthConnection, String> {
+fn connection_from_token(
+    token: GoogleTokenPayload,
+    account: GoogleAccount,
+) -> Result<GoogleAuthConnection, String> {
     let access_token = token
         .access_token
         .ok_or_else(|| "Google did not return an access token.".to_string())?;
@@ -320,7 +326,10 @@ fn delete_refresh_token() -> Result<(), String> {
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub async fn google_oauth_connect(client_id: String) -> Result<GoogleAuthConnection, String> {
+pub async fn google_oauth_connect(
+    app: tauri::AppHandle,
+    client_id: String,
+) -> Result<GoogleAuthConnection, String> {
     if client_id.trim().is_empty() {
         return Err("Google OAuth client ID is not configured.".to_string());
     }
@@ -353,8 +362,13 @@ pub async fn google_oauth_connect(client_id: String) -> Result<GoogleAuthConnect
             .append_pair("prompt", "consent");
     }
 
-    open::that(authorization_url.as_str())
-        .map_err(|error| format!("Could not open the system browser for Google authorization: {error}"))?;
+    let authorization_url = authorization_url.to_string();
+    let _ = app.emit(AUTH_URL_EVENT, authorization_url.clone());
+
+    // Best-effort auto-open. If Windows cannot open the URL automatically,
+    // the app still shows the exact authorization URL so the user can open
+    // or copy it manually while the loopback callback keeps listening.
+    let _ = open::that(&authorization_url);
 
     let expected_state = state.clone();
     let code = tauri::async_runtime::spawn_blocking(move || {
@@ -363,7 +377,8 @@ pub async fn google_oauth_connect(client_id: String) -> Result<GoogleAuthConnect
     .await
     .map_err(|error| format!("OAuth callback task failed: {error}"))??;
 
-    let token = exchange_authorization_code(client_id.trim(), &code, &redirect_uri, &verifier).await?;
+    let token =
+        exchange_authorization_code(client_id.trim(), &code, &redirect_uri, &verifier).await?;
     if let Some(refresh_token) = token.refresh_token.as_deref() {
         store_refresh_token(refresh_token)?;
     } else if read_refresh_token()?.is_none() {
@@ -379,6 +394,22 @@ pub async fn google_oauth_connect(client_id: String) -> Result<GoogleAuthConnect
         .ok_or_else(|| "Google did not return an access token.".to_string())?;
     let account = fetch_account(access_token).await?;
     connection_from_token(token, account)
+}
+
+#[tauri::command]
+pub fn google_oauth_open_url(url: String) -> Result<(), String> {
+    let parsed = Url::parse(url.trim())
+        .map_err(|error| format!("The Google authorization URL is invalid: {error}"))?;
+
+    if parsed.scheme() != "https"
+        || parsed.host_str() != Some("accounts.google.com")
+        || !parsed.path().starts_with("/o/oauth2/")
+    {
+        return Err("Refusing to open a non-Google OAuth URL.".to_string());
+    }
+
+    open::that(parsed.as_str())
+        .map_err(|error| format!("Could not open the system browser: {error}"))
 }
 
 #[tauri::command(rename_all = "camelCase")]

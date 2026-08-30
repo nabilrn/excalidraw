@@ -1,3 +1,5 @@
+mod google_oauth;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -132,6 +134,11 @@ pub fn run() {
                 .add_migrations("sqlite:focuscanvas.db", migrations)
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![
+            google_oauth::google_oauth_connect,
+            google_oauth::google_oauth_restore,
+            google_oauth::google_oauth_disconnect,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running FocusCanvas");
 }

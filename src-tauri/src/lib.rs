@@ -136,6 +136,7 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             google_oauth::google_oauth_connect,
+            google_oauth::google_oauth_open_url,
             google_oauth::google_oauth_restore,
             google_oauth::google_oauth_disconnect,
         ])

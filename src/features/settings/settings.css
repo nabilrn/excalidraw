@@ -96,9 +96,13 @@
   line-height: 1;
 }
 
-.utility-settings-close:hover {
+.utility-settings-close:hover:not(:disabled) {
   border-color: var(--border);
   background: var(--row-hover);
+}
+
+.utility-settings-close:disabled {
+  opacity: 0.35;
 }
 
 .utility-settings-content {
@@ -375,6 +379,116 @@
   margin-top: 8px;
 }
 
+.drive-oauth-backdrop {
+  position: fixed;
+  z-index: 260;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(17 17 17 / 0.28);
+  backdrop-filter: blur(2px);
+}
+
+.drive-oauth-dialog {
+  width: min(520px, 100%);
+  padding: 20px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--sketch-radius);
+  background: #ffffff;
+  box-shadow: 5px 6px 0 rgb(0 0 0 / 0.1);
+  color: var(--text);
+}
+
+.drive-oauth-eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(9px * var(--utility-font-scale));
+  letter-spacing: 0.11em;
+}
+
+.drive-oauth-dialog h2 {
+  margin: 4px 0 8px;
+  font-family: "Caveat", cursive;
+  font-size: calc(25px * var(--utility-font-scale));
+  line-height: 1;
+}
+
+.drive-oauth-description,
+.drive-oauth-waiting {
+  margin: 0;
+  color: var(--muted);
+  font-size: calc(10px * var(--utility-font-scale));
+  line-height: 1.5;
+}
+
+.drive-oauth-url-field {
+  display: block;
+  margin-top: 16px;
+}
+
+.drive-oauth-url-field > span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: calc(9px * var(--utility-font-scale));
+  letter-spacing: 0.06em;
+}
+
+.drive-oauth-url-field input {
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--sketch-radius);
+  background: #fafafa;
+  color: var(--text-mid);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+}
+
+.drive-oauth-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.drive-oauth-actions button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--sketch-radius);
+  background: #ffffff;
+  color: var(--text-mid);
+  font-size: calc(10px * var(--utility-font-scale));
+}
+
+.drive-oauth-actions button:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+
+.drive-oauth-actions .drive-oauth-primary {
+  border-color: #111111;
+  background: #111111;
+  color: #ffffff;
+}
+
+.drive-oauth-actions .drive-oauth-primary:hover:not(:disabled) {
+  background: #292929;
+}
+
+.drive-oauth-actions button:disabled {
+  opacity: 0.55;
+}
+
+.drive-oauth-waiting {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  color: var(--faint);
+}
+
 /* Home/workspace typography only. Editor and Excalidraw are intentionally excluded. */
 .desktop-app .brand { font-size: calc(17px * var(--utility-font-scale)); }
 .desktop-app .top-tabs button { font-size: calc(12px * var(--utility-font-scale)); }
@@ -425,7 +539,8 @@
 .desktop-app .statusbar { font-size: calc(10px * var(--utility-font-scale)); }
 
 @media (max-width: 620px) {
-  .utility-settings-backdrop {
+  .utility-settings-backdrop,
+  .drive-oauth-backdrop {
     padding: 14px;
   }
 
@@ -447,5 +562,13 @@
   .drive-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .drive-oauth-actions {
+    flex-direction: column;
+  }
+
+  .drive-oauth-actions button {
+    width: 100%;
   }
 }

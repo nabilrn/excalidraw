@@ -30,6 +30,8 @@ jobs:
         run: npm install
 
       - name: Build Windows installers
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
         run: npm run desktop:build
 
       - name: Upload Windows installers

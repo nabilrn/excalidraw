@@ -5,7 +5,9 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import {
   GOOGLE_CLIENT_ID,
   connectGoogleDrive,
+  disconnectGoogleDrive,
   getLastSyncAt,
+  restoreGoogleDriveConnection,
   syncWorkspaceWithDrive,
   type GoogleAccount,
   type SyncResult,
@@ -36,7 +38,13 @@ const presets = [
   { label: "XL", value: 130 },
 ];
 
-type SyncState = "idle" | "connecting" | "connected" | "syncing" | "conflict" | "error";
+type SyncState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "syncing"
+  | "conflict"
+  | "error";
 type PendingDriveAction = "disconnect" | "push" | "pull" | null;
 
 function formatSyncTime(timestamp: number | null) {
@@ -51,15 +59,28 @@ function formatSyncTime(timestamp: number | null) {
   }).format(new Date(timestamp))}`;
 }
 
+function errorMessage(cause: unknown, fallback: string) {
+  if (cause instanceof Error) {
+    return cause.message;
+  }
+  if (typeof cause === "string" && cause.trim()) {
+    return cause;
+  }
+  return fallback;
+}
+
 export function UtilitySettings() {
   const [open, setOpen] = useState(false);
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [portalTarget, setPortalTarget] = useState<Element | null>(null);
   const [saved, setSaved] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [tokenExpiresAt, setTokenExpiresAt] = useState(0);
   const [account, setAccount] = useState<GoogleAccount | null>(null);
   const [syncState, setSyncState] = useState<SyncState>("idle");
-  const [syncMessage, setSyncMessage] = useState("Local data has not been connected to Drive.");
+  const [syncMessage, setSyncMessage] = useState(
+    "Local data has not been connected to Drive.",
+  );
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [autoSync, setAutoSync] = useState(false);
   const [pendingDriveAction, setPendingDriveAction] =
@@ -94,6 +115,38 @@ export function UtilitySettings() {
       })
       .finally(() => {
         loadedRef.current = true;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      return;
+    }
+
+    let cancelled = false;
+    void restoreGoogleDriveConnection()
+      .then((connection) => {
+        if (cancelled || !connection) {
+          return;
+        }
+        setAccessToken(connection.accessToken);
+        setTokenExpiresAt(connection.expiresAt);
+        setAccount(connection.account);
+        setSyncState("connected");
+        setSyncMessage("Connected to Google Drive.");
+      })
+      .catch((cause) => {
+        console.error(cause);
+        if (!cancelled) {
+          setSyncState("error");
+          setSyncMessage(
+            errorMessage(cause, "Could not restore Google Drive connection."),
+          );
+        }
       });
 
     return () => {
@@ -188,9 +241,7 @@ export function UtilitySettings() {
       } catch (cause) {
         console.error(cause);
         setSyncState("error");
-        setSyncMessage(
-          cause instanceof Error ? cause.message : "Google Drive sync failed.",
-        );
+        setSyncMessage(errorMessage(cause, "Google Drive sync failed."));
       }
     },
     [],
@@ -206,14 +257,52 @@ export function UtilitySettings() {
     return () => window.clearInterval(interval);
   }, [accessToken, autoSync, runSync]);
 
+  useEffect(() => {
+    if (!accessToken || !account || !tokenExpiresAt) {
+      return;
+    }
+
+    const refreshDelay = Math.max(
+      10_000,
+      tokenExpiresAt - Date.now() - 60_000,
+    );
+    const timer = window.setTimeout(() => {
+      void restoreGoogleDriveConnection()
+        .then((connection) => {
+          if (!connection) {
+            setAccessToken(null);
+            setTokenExpiresAt(0);
+            setAccount(null);
+            setSyncState("idle");
+            setSyncMessage("Google Drive authorization expired. Connect again.");
+            return;
+          }
+          setAccessToken(connection.accessToken);
+          setTokenExpiresAt(connection.expiresAt);
+          setAccount(connection.account);
+          setSyncState("connected");
+        })
+        .catch((cause) => {
+          console.error(cause);
+          setSyncState("error");
+          setSyncMessage(
+            errorMessage(cause, "Could not refresh Google Drive authorization."),
+          );
+        });
+    }, refreshDelay);
+
+    return () => window.clearTimeout(timer);
+  }, [accessToken, account, tokenExpiresAt]);
+
   const setFontScale = (value: number) => setScale(clampScale(value));
 
   const handleConnect = async () => {
     setSyncState("connecting");
-    setSyncMessage("Opening Google OAuth…");
+    setSyncMessage("Opening Google in your browser…");
     try {
       const connected = await connectGoogleDrive();
       setAccessToken(connected.accessToken);
+      setTokenExpiresAt(connected.expiresAt);
       setAccount(connected.account);
       setSyncState("connected");
       setSyncMessage("Connected. Checking workspace state…");
@@ -221,9 +310,7 @@ export function UtilitySettings() {
     } catch (cause) {
       console.error(cause);
       setSyncState("error");
-      setSyncMessage(
-        cause instanceof Error ? cause.message : "Could not connect Google Drive.",
-      );
+      setSyncMessage(errorMessage(cause, "Could not connect Google Drive."));
     }
   };
 
@@ -240,10 +327,16 @@ export function UtilitySettings() {
     }
 
     if (action === "disconnect") {
+      try {
+        await disconnectGoogleDrive();
+      } catch (cause) {
+        console.error(cause);
+      }
       setAccessToken(null);
+      setTokenExpiresAt(0);
       setAccount(null);
       setSyncState("idle");
-      setSyncMessage("Google Drive disconnected for this app session.");
+      setSyncMessage("Google Drive disconnected.");
       return;
     }
 
@@ -257,7 +350,7 @@ export function UtilitySettings() {
       ? {
           title: "Disconnect Google Drive?",
           message:
-            "Local workspace data stays on this device. Automatic sync stops until you connect again.",
+            "Local workspace data stays on this device. Stored Google authorization will be revoked and automatic sync will stop.",
           label: "Disconnect",
         }
       : pendingDriveAction === "push"

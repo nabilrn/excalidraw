@@ -1,22 +1,18 @@
 import { getDatabase } from "../../lib/db";
 import { getSetting, setSetting } from "../settings/settingsRepository";
 
-const DRIVE_SCOPE = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/drive.appdata",
-].join(" ");
+export {
+  GOOGLE_CLIENT_ID,
+  connectGoogleDrive,
+  disconnectGoogleDrive,
+  restoreGoogleDriveConnection,
+  type GoogleAccount,
+  type GoogleDriveConnection,
+} from "./nativeGoogleAuth";
+
 const BACKUP_FILE_NAME = "focuscanvas-workspace.json";
 const LAST_REVISION_KEY = "drive_last_synced_revision";
 const LAST_SYNC_AT_KEY = "drive_last_sync_at";
-
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? "";
-
-export type GoogleAccount = {
-  email: string;
-  name: string;
-};
 
 type WorkspaceData = {
   tasks: Record<string, unknown>[];
@@ -41,123 +37,6 @@ type DriveFile = {
 export type SyncResult =
   | { status: "uploaded" | "downloaded" | "up-to-date"; syncedAt: number }
   | { status: "conflict"; localRevision: string; remoteRevision: string };
-
-type GoogleTokenResponse = {
-  access_token?: string;
-  expires_in?: number;
-  error?: string;
-  error_description?: string;
-};
-
-type GoogleTokenClient = {
-  requestAccessToken: (options?: { prompt?: string }) => void;
-};
-
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        oauth2?: {
-          initTokenClient: (options: {
-            client_id: string;
-            scope: string;
-            callback: (response: GoogleTokenResponse) => void;
-            error_callback?: (error: unknown) => void;
-          }) => GoogleTokenClient;
-        };
-      };
-    };
-  }
-}
-
-let identityScriptPromise: Promise<void> | null = null;
-
-function loadGoogleIdentityScript() {
-  if (window.google?.accounts?.oauth2) {
-    return Promise.resolve();
-  }
-  if (identityScriptPromise) {
-    return identityScriptPromise;
-  }
-
-  identityScriptPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-focuscanvas-google-identity="true"]',
-    );
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener(
-        "error",
-        () => reject(new Error("Could not load Google Identity Services.")),
-        { once: true },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.dataset.focuscanvasGoogleIdentity = "true";
-    script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error("Could not load Google Identity Services."));
-    document.head.appendChild(script);
-  });
-
-  return identityScriptPromise;
-}
-
-export async function connectGoogleDrive() {
-  if (!GOOGLE_CLIENT_ID) {
-    throw new Error(
-      "Google OAuth is not configured. Set VITE_GOOGLE_CLIENT_ID before building FocusCanvas.",
-    );
-  }
-
-  await loadGoogleIdentityScript();
-  const oauth = window.google?.accounts?.oauth2;
-  if (!oauth) {
-    throw new Error("Google OAuth could not be initialized.");
-  }
-
-  const accessToken = await new Promise<string>((resolve, reject) => {
-    const client = oauth.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: DRIVE_SCOPE,
-      callback: (response) => {
-        if (response.error || !response.access_token) {
-          reject(
-            new Error(
-              response.error_description ?? response.error ?? "Google OAuth failed.",
-            ),
-          );
-          return;
-        }
-        resolve(response.access_token);
-      },
-      error_callback: () => reject(new Error("Google OAuth window was closed.")),
-    });
-
-    client.requestAccessToken({ prompt: "consent" });
-  });
-
-  const response = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) {
-    throw new Error("Connected to Google, but account information could not be read.");
-  }
-  const account = (await response.json()) as Partial<GoogleAccount>;
-
-  return {
-    accessToken,
-    account: {
-      email: account.email ?? "Google account",
-      name: account.name ?? account.email ?? "Google account",
-    } satisfies GoogleAccount,
-  };
-}
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);

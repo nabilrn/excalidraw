@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Excalidraw, serializeAsJSON } from "@excalidraw/excalidraw";
 
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import {
-  assignDiagramToTask,
+  assignDiagramToGroup,
+  createCanvasGroup,
   createDiagram,
+  deleteCanvasGroup,
   deleteDiagram,
+  listCanvasGroups,
   listDiagrams,
+  renameCanvasGroup,
   renameDiagram,
   saveDiagramScene,
+  type CanvasGroupRecord,
   type DiagramRecord,
 } from "./features/diagrams/diagramRepository";
 import { deserializeScene } from "./features/diagrams/sceneStorage";
@@ -26,6 +32,7 @@ import {
   setTaskEstimatedMinutes,
   type TaskRecord,
 } from "./features/tasks/taskRepository";
+import "./workspaceEnhancements.css";
 
 type View = "workspace" | "editor";
 type WorkspaceTab = "tasks" | "canvases";
@@ -36,6 +43,13 @@ type DiagramGroup = {
   id: string | null;
   name: string;
   diagrams: DiagramRecord[];
+};
+
+type ConfirmationRequest = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  run: () => Promise<void>;
 };
 
 const clampMinutes = (value: number) =>
@@ -80,6 +94,7 @@ export default function App() {
   const [tab, setTab] = useState<WorkspaceTab>("tasks");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [diagrams, setDiagrams] = useState<DiagramRecord[]>([]);
+  const [canvasGroups, setCanvasGroups] = useState<CanvasGroupRecord[]>([]);
   const [sessions, setSessions] = useState<FocusSessionRecord[]>([]);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [activeDiagram, setActiveDiagram] = useState<DiagramRecord | null>(null);
@@ -87,8 +102,15 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskMinutes, setNewTaskMinutes] = useState(45);
+  const [showGroupComposer, setShowGroupComposer] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGroupName, setEditingGroupName] = useState("");
   const [editingDiagramId, setEditingDiagramId] = useState<string | null>(null);
   const [editingDiagramName, setEditingDiagramName] = useState("");
+  const [confirmation, setConfirmation] =
+    useState<ConfirmationRequest | null>(null);
+  const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("Saved");
@@ -102,13 +124,16 @@ export default function App() {
   const refreshWorkspace = useCallback(async () => {
     try {
       setError(null);
-      const [nextTasks, nextDiagrams, nextSessions] = await Promise.all([
-        listTasks(),
-        listDiagrams(),
-        listRecentFocusSessions(100),
-      ]);
+      const [nextTasks, nextDiagrams, nextGroups, nextSessions] =
+        await Promise.all([
+          listTasks(),
+          listDiagrams(),
+          listCanvasGroups(),
+          listRecentFocusSessions(100),
+        ]);
       setTasks(nextTasks);
       setDiagrams(nextDiagrams);
+      setCanvasGroups(nextGroups);
       setSessions(nextSessions);
     } catch (cause) {
       console.error(cause);
@@ -120,6 +145,16 @@ export default function App() {
 
   useEffect(() => {
     void refreshWorkspace();
+  }, [refreshWorkspace]);
+
+  useEffect(() => {
+    const handleWorkspaceSynced = () => void refreshWorkspace();
+    window.addEventListener("focuscanvas:workspace-synced", handleWorkspaceSynced);
+    return () =>
+      window.removeEventListener(
+        "focuscanvas:workspace-synced",
+        handleWorkspaceSynced,
+      );
   }, [refreshWorkspace]);
 
   useEffect(() => {
@@ -195,22 +230,22 @@ export default function App() {
   }, [diagrams, search]);
 
   const diagramGroups = useMemo<DiagramGroup[]>(() => {
-    const groups: DiagramGroup[] = tasks.map((task) => ({
-      id: task.id,
-      name: task.title,
+    const groups: DiagramGroup[] = canvasGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
       diagrams: filteredDiagrams.filter(
-        (diagram) => diagram.task_id === task.id,
+        (diagram) => diagram.group_id === group.id,
       ),
     }));
 
     groups.push({
       id: null,
       name: "Ungrouped",
-      diagrams: filteredDiagrams.filter((diagram) => !diagram.task_id),
+      diagrams: filteredDiagrams.filter((diagram) => !diagram.group_id),
     });
 
     return groups;
-  }, [filteredDiagrams, tasks]);
+  }, [canvasGroups, filteredDiagrams]);
 
   const totalFocusedMinutes = Math.round(
     sessions.reduce((sum, session) => sum + session.actual_seconds, 0) / 60,
@@ -231,6 +266,22 @@ export default function App() {
       void focus.finish();
     }
   }, [focus.finish, focus.session?.status, remainingSeconds]);
+
+  const runConfirmation = useCallback(async () => {
+    if (!confirmation || confirmationBusy) {
+      return;
+    }
+    setConfirmationBusy(true);
+    try {
+      await confirmation.run();
+      setConfirmation(null);
+    } catch (cause) {
+      console.error(cause);
+      setError(cause instanceof Error ? cause.message : "Could not complete action.");
+    } finally {
+      setConfirmationBusy(false);
+    }
+  }, [confirmation, confirmationBusy]);
 
   const openDiagram = useCallback(async (diagram: DiagramRecord) => {
     setLoading(true);
@@ -289,23 +340,23 @@ export default function App() {
     }
   }, []);
 
-  const handleDeleteTask = useCallback(async (task: TaskRecord) => {
-    if (!window.confirm(`Delete “${task.title}”?`)) {
-      return;
-    }
-    try {
-      await deleteTask(task.id);
-      setTasks((current) => current.filter((item) => item.id !== task.id));
-      setDiagrams((current) =>
-        current.map((diagram) =>
-          diagram.task_id === task.id ? { ...diagram, task_id: null } : diagram,
-        ),
-      );
-      setFocusId((current) => (current === task.id ? null : current));
-    } catch (cause) {
-      console.error(cause);
-      setError("Could not delete task.");
-    }
+  const handleDeleteTask = useCallback((task: TaskRecord) => {
+    setConfirmation({
+      title: `Delete “${task.title}”?`,
+      message:
+        "The task will be deleted. Its canvases stay in the workspace and keep their canvas groups.",
+      confirmLabel: "Delete task",
+      run: async () => {
+        await deleteTask(task.id);
+        setTasks((current) => current.filter((item) => item.id !== task.id));
+        setDiagrams((current) =>
+          current.map((diagram) =>
+            diagram.task_id === task.id ? { ...diagram, task_id: null } : diagram,
+          ),
+        );
+        setFocusId((current) => (current === task.id ? null : current));
+      },
+    });
   }, []);
 
   const handleTaskMinutes = useCallback(
@@ -329,9 +380,13 @@ export default function App() {
   );
 
   const handleCreateDiagram = useCallback(
-    async (taskId: string | null = focusId) => {
+    async (groupId: string | null = null, taskId: string | null = focusId) => {
       try {
-        const diagram = await createDiagram("Untitled canvas", taskId);
+        const diagram = await createDiagram(
+          "Untitled canvas",
+          taskId,
+          groupId,
+        );
         setDiagrams((current) => [diagram, ...current]);
         await openDiagram(diagram);
       } catch (cause) {
@@ -342,15 +397,79 @@ export default function App() {
     [focusId, openDiagram],
   );
 
-  const handleAssignDiagram = useCallback(
-    async (diagram: DiagramRecord, taskId: string) => {
-      const nextTaskId = taskId || null;
+  const handleCreateGroup = useCallback(async () => {
+    const name = newGroupName.trim();
+    if (!name) {
+      return;
+    }
+    try {
+      const group = await createCanvasGroup(name);
+      setCanvasGroups((current) => [...current, group]);
+      setNewGroupName("");
+      setShowGroupComposer(false);
+    } catch (cause) {
+      console.error(cause);
+      setError("Could not create canvas group.");
+    }
+  }, [newGroupName]);
+
+  const commitGroupRename = useCallback(
+    async (groupId: string) => {
+      const nextName = editingGroupName.trim();
+      setEditingGroupId(null);
+      if (!nextName) {
+        return;
+      }
+      const current = canvasGroups.find((group) => group.id === groupId);
+      if (!current || current.name === nextName) {
+        return;
+      }
       try {
-        const updatedAt = await assignDiagramToTask(diagram.id, nextTaskId);
+        const updatedAt = await renameCanvasGroup(groupId, nextName);
+        setCanvasGroups((groups) =>
+          groups.map((group) =>
+            group.id === groupId
+              ? { ...group, name: nextName, updated_at: updatedAt }
+              : group,
+          ),
+        );
+      } catch (cause) {
+        console.error(cause);
+        setError("Could not rename canvas group.");
+      }
+    },
+    [canvasGroups, editingGroupName],
+  );
+
+  const handleDeleteGroup = useCallback((group: CanvasGroupRecord) => {
+    setConfirmation({
+      title: `Delete group “${group.name}”?`,
+      message:
+        "The group will be removed. Canvases inside it will move to Ungrouped and will not be deleted.",
+      confirmLabel: "Delete group",
+      run: async () => {
+        await deleteCanvasGroup(group.id);
+        setCanvasGroups((current) =>
+          current.filter((item) => item.id !== group.id),
+        );
+        setDiagrams((current) =>
+          current.map((diagram) =>
+            diagram.group_id === group.id ? { ...diagram, group_id: null } : diagram,
+          ),
+        );
+      },
+    });
+  }, []);
+
+  const handleAssignDiagram = useCallback(
+    async (diagram: DiagramRecord, groupId: string) => {
+      const nextGroupId = groupId || null;
+      try {
+        const updatedAt = await assignDiagramToGroup(diagram.id, nextGroupId);
         setDiagrams((current) =>
           current.map((item) =>
             item.id === diagram.id
-              ? { ...item, task_id: nextTaskId, updated_at: updatedAt }
+              ? { ...item, group_id: nextGroupId, updated_at: updatedAt }
               : item,
           ),
         );
@@ -388,19 +507,18 @@ export default function App() {
     [editingDiagramName],
   );
 
-  const handleDeleteDiagram = useCallback(async (diagram: DiagramRecord) => {
-    if (!window.confirm(`Delete “${diagram.name}”? This cannot be undone.`)) {
-      return;
-    }
-    try {
-      await deleteDiagram(diagram.id);
-      setDiagrams((current) =>
-        current.filter((item) => item.id !== diagram.id),
-      );
-    } catch (cause) {
-      console.error(cause);
-      setError("Could not delete canvas.");
-    }
+  const handleDeleteDiagram = useCallback((diagram: DiagramRecord) => {
+    setConfirmation({
+      title: `Delete “${diagram.name}”?`,
+      message: "This canvas and its drawing data will be permanently deleted.",
+      confirmLabel: "Delete canvas",
+      run: async () => {
+        await deleteDiagram(diagram.id);
+        setDiagrams((current) =>
+          current.filter((item) => item.id !== diagram.id),
+        );
+      },
+    });
   }, []);
 
   const handleStartFocus = useCallback(async () => {
@@ -520,443 +638,554 @@ export default function App() {
   }
 
   return (
-    <main className="desktop-app">
-      <header className="topbar">
-        <div className="brand">FocusCanvas</div>
-        <nav className="top-tabs" aria-label="Workspace sections">
-          {(["tasks", "canvases"] as WorkspaceTab[]).map((item) => (
+    <>
+      <main className="desktop-app">
+        <header className="topbar">
+          <div className="brand">FocusCanvas</div>
+          <nav className="top-tabs" aria-label="Workspace sections">
+            {(["tasks", "canvases"] as WorkspaceTab[]).map((item) => (
+              <button
+                className={tab === item ? "is-active" : ""}
+                key={item}
+                onClick={() => setTab(item)}
+              >
+                {item === "tasks" ? "Tasks" : "Canvases"}
+              </button>
+            ))}
+          </nav>
+          <div className="topbar-actions">
+            <span>local workspace</span>
             <button
-              className={tab === item ? "is-active" : ""}
-              key={item}
-              onClick={() => setTab(item)}
+              className="primary-compact"
+              onClick={() => void handleCreateDiagram(null)}
             >
-              {item === "tasks" ? "Tasks" : "Canvases"}
+              + New canvas
             </button>
-          ))}
-        </nav>
-        <div className="topbar-actions">
-          <span>local workspace</span>
-          <button
-            className="primary-compact"
-            onClick={() => void handleCreateDiagram()}
-          >
-            + New canvas
-          </button>
-        </div>
-      </header>
-
-      {(error || focus.error) && (
-        <div className="desktop-error">{error ?? focus.error}</div>
-      )}
-
-      <div className="desktop-body">
-        <aside className="left-sidebar">
-          <div className="sidebar-heading">
-            <span>TASKS</span>
-            <span>{openCount} open</span>
           </div>
+        </header>
 
-          <div className="task-scroll">
-            {loading ? (
-              <div className="sidebar-empty">loading…</div>
-            ) : tasks.length === 0 ? (
-              <div className="sidebar-empty">no tasks yet</div>
+        {(error || focus.error) && (
+          <div className="desktop-error">{error ?? focus.error}</div>
+        )}
+
+        <div className="desktop-body">
+          <aside className="left-sidebar">
+            <div className="sidebar-heading">
+              <span>TASKS</span>
+              <span>{openCount} open</span>
+            </div>
+
+            <div className="task-scroll">
+              {loading ? (
+                <div className="sidebar-empty">loading…</div>
+              ) : tasks.length === 0 ? (
+                <div className="sidebar-empty">no tasks yet</div>
+              ) : (
+                tasks.map((task) => {
+                  const completed = task.status === "completed";
+                  const active = focusId === task.id;
+                  return (
+                    <div
+                      className={`sidebar-task ${active ? "is-active" : ""} ${
+                        completed ? "is-done" : ""
+                      }`}
+                      key={task.id}
+                    >
+                      <button
+                        className="sketch-check"
+                        aria-label={completed ? "Reopen task" : "Complete task"}
+                        onClick={() => void handleToggleTask(task)}
+                      >
+                        {completed ? "✓" : ""}
+                      </button>
+                      <button
+                        className="task-name-button"
+                        title={task.title}
+                        onClick={() => {
+                          adoptedSessionRef.current = true;
+                          setFocusId(task.id);
+                          setTab("tasks");
+                        }}
+                      >
+                        {task.title}
+                      </button>
+                      <input
+                        className="duration-badge"
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={task.estimated_minutes ?? 45}
+                        aria-label={`Duration for ${task.title}`}
+                        onChange={(event) => {
+                          const value = clampMinutes(Number(event.target.value));
+                          setTasks((current) =>
+                            current.map((item) =>
+                              item.id === task.id
+                                ? { ...item, estimated_minutes: value }
+                                : item,
+                            ),
+                          );
+                        }}
+                        onBlur={(event) =>
+                          void handleTaskMinutes(task, Number(event.target.value))
+                        }
+                      />
+                      <span className="duration-suffix">m</span>
+                      <button
+                        className="task-delete"
+                        aria-label={`Delete ${task.title}`}
+                        onClick={() => handleDeleteTask(task)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="task-footer">
+              <input
+                className="task-input"
+                value={newTaskTitle}
+                placeholder="New task"
+                onChange={(event) => setNewTaskTitle(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void handleCreateTask();
+                  }
+                }}
+              />
+              <input
+                className="minute-input"
+                type="number"
+                min={1}
+                max={999}
+                value={newTaskMinutes}
+                aria-label="Task minutes"
+                onChange={(event) =>
+                  setNewTaskMinutes(clampMinutes(Number(event.target.value)))
+                }
+              />
+              <button
+                className="footer-add"
+                onClick={() => void handleCreateTask()}
+              >
+                Add
+              </button>
+            </div>
+          </aside>
+
+          <section className="main-panel">
+            {tab === "tasks" ? (
+              activeTask ? (
+                <div className="task-detail-view">
+                  <p className="section-label">ACTIVE TASK</p>
+                  <h1>{activeTask.title}</h1>
+
+                  <div className="task-stats">
+                    <div>
+                      <strong>{activeTask.estimated_minutes ?? 45}m</strong>
+                      <span>DURATION</span>
+                    </div>
+                    <div>
+                      <strong>{activeTaskDiagrams.length}</strong>
+                      <span>CANVASES</span>
+                    </div>
+                    <div>
+                      <strong>
+                        {activeTask.status === "completed" ? "Done" : "Open"}
+                      </strong>
+                      <span>STATUS</span>
+                    </div>
+                  </div>
+
+                  <div className="progress-block">
+                    <div className="progress-copy">
+                      <span>Today's progress</span>
+                      <span>
+                        {doneCount}/{tasks.length}
+                      </span>
+                    </div>
+                    <div className="progress-track">
+                      <span style={{ width: `${progressPercent}%` }} />
+                    </div>
+                  </div>
+
+                  <p className="section-label list-label">ALL TASKS</p>
+                  <div className="all-task-card">
+                    {tasks.map((task) => (
+                      <button
+                        className={`all-task-row ${
+                          task.id === focusId ? "is-active" : ""
+                        }`}
+                        key={task.id}
+                        onClick={() => setFocusId(task.id)}
+                      >
+                        <span
+                          className={`task-dot ${
+                            task.id === focusId
+                              ? "is-active"
+                              : task.status === "completed"
+                                ? "is-done"
+                                : ""
+                          }`}
+                        />
+                        <span>{task.title}</span>
+                        <strong>{task.estimated_minutes ?? 45}m</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="focus-empty-state">
+                  <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="12" y="15" width="40" height="34" rx="5" />
+                    <path d="M20 27h24M20 36h17" />
+                  </svg>
+                  <strong>Click a task to focus</strong>
+                </div>
+              )
             ) : (
-              tasks.map((task) => {
-                const completed = task.status === "completed";
-                const active = focusId === task.id;
-                return (
-                  <div
-                    className={`sidebar-task ${active ? "is-active" : ""} ${
-                      completed ? "is-done" : ""
-                    }`}
-                    key={task.id}
+              <div className="canvases-view">
+                <div className="canvas-toolbar">
+                  <h1>Canvases</h1>
+                  <input
+                    type="search"
+                    placeholder="Search canvases"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                  <span>{filteredDiagrams.length} total</span>
+                  <button
+                    className="canvas-new-group-button"
+                    onClick={() => setShowGroupComposer((current) => !current)}
                   >
-                    <button
-                      className="sketch-check"
-                      aria-label={completed ? "Reopen task" : "Complete task"}
-                      onClick={() => void handleToggleTask(task)}
-                    >
-                      {completed ? "✓" : ""}
-                    </button>
-                    <button
-                      className="task-name-button"
-                      title={task.title}
-                      onClick={() => {
-                        adoptedSessionRef.current = true;
-                        setFocusId(task.id);
-                        setTab("tasks");
-                      }}
-                    >
-                      {task.title}
-                    </button>
+                    + New group
+                  </button>
+                </div>
+
+                {showGroupComposer && (
+                  <div className="new-group-composer">
                     <input
-                      className="duration-badge"
-                      type="number"
-                      min={1}
-                      max={999}
-                      value={task.estimated_minutes ?? 45}
-                      aria-label={`Duration for ${task.title}`}
-                      onChange={(event) => {
-                        const value = clampMinutes(Number(event.target.value));
-                        setTasks((current) =>
-                          current.map((item) =>
-                            item.id === task.id
-                              ? { ...item, estimated_minutes: value }
-                              : item,
-                          ),
-                        );
+                      autoFocus
+                      value={newGroupName}
+                      placeholder="Group name"
+                      aria-label="Canvas group name"
+                      onChange={(event) => setNewGroupName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          void handleCreateGroup();
+                        }
+                        if (event.key === "Escape") {
+                          setShowGroupComposer(false);
+                          setNewGroupName("");
+                        }
                       }}
-                      onBlur={(event) =>
-                        void handleTaskMinutes(task, Number(event.target.value))
-                      }
                     />
-                    <span className="duration-suffix">m</span>
                     <button
-                      className="task-delete"
-                      aria-label={`Delete ${task.title}`}
-                      onClick={() => void handleDeleteTask(task)}
+                      className="is-primary"
+                      onClick={() => void handleCreateGroup()}
+                    >
+                      Create
+                    </button>
+                    <button
+                      aria-label="Cancel new group"
+                      onClick={() => {
+                        setShowGroupComposer(false);
+                        setNewGroupName("");
+                      }}
                     >
                       ×
                     </button>
                   </div>
-                );
-              })
-            )}
-          </div>
+                )}
 
-          <div className="task-footer">
-            <input
-              className="task-input"
-              value={newTaskTitle}
-              placeholder="New task"
-              onChange={(event) => setNewTaskTitle(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  void handleCreateTask();
-                }
-              }}
-            />
-            <input
-              className="minute-input"
-              type="number"
-              min={1}
-              max={999}
-              value={newTaskMinutes}
-              aria-label="Task minutes"
-              onChange={(event) =>
-                setNewTaskMinutes(clampMinutes(Number(event.target.value)))
-              }
-            />
-            <button
-              className="footer-add"
-              onClick={() => void handleCreateTask()}
-            >
-              Add
-            </button>
-          </div>
-        </aside>
-
-        <section className="main-panel">
-          {tab === "tasks" ? (
-            activeTask ? (
-              <div className="task-detail-view">
-                <p className="section-label">ACTIVE TASK</p>
-                <h1>{activeTask.title}</h1>
-
-                <div className="task-stats">
-                  <div>
-                    <strong>{activeTask.estimated_minutes ?? 45}m</strong>
-                    <span>DURATION</span>
-                  </div>
-                  <div>
-                    <strong>{activeTaskDiagrams.length}</strong>
-                    <span>CANVASES</span>
-                  </div>
-                  <div>
-                    <strong>
-                      {activeTask.status === "completed" ? "Done" : "Open"}
-                    </strong>
-                    <span>STATUS</span>
-                  </div>
-                </div>
-
-                <div className="progress-block">
-                  <div className="progress-copy">
-                    <span>Today's progress</span>
-                    <span>
-                      {doneCount}/{tasks.length}
-                    </span>
-                  </div>
-                  <div className="progress-track">
-                    <span style={{ width: `${progressPercent}%` }} />
-                  </div>
-                </div>
-
-                <p className="section-label list-label">ALL TASKS</p>
-                <div className="all-task-card">
-                  {tasks.map((task) => (
-                    <button
-                      className={`all-task-row ${
-                        task.id === focusId ? "is-active" : ""
-                      }`}
-                      key={task.id}
-                      onClick={() => setFocusId(task.id)}
-                    >
-                      <span
-                        className={`task-dot ${
-                          task.id === focusId
-                            ? "is-active"
-                            : task.status === "completed"
-                              ? "is-done"
-                              : ""
-                        }`}
-                      />
-                      <span>{task.title}</span>
-                      <strong>{task.estimated_minutes ?? 45}m</strong>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="focus-empty-state">
-                <svg viewBox="0 0 64 64" aria-hidden="true">
-                  <rect x="12" y="15" width="40" height="34" rx="5" />
-                  <path d="M20 27h24M20 36h17" />
-                </svg>
-                <strong>Click a task to focus</strong>
-              </div>
-            )
-          ) : (
-            <div className="canvases-view">
-              <div className="canvas-toolbar">
-                <h1>Canvases</h1>
-                <input
-                  type="search"
-                  placeholder="Search canvases"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                <span>{filteredDiagrams.length} total</span>
-              </div>
-
-              <div className="canvas-groups">
-                {diagramGroups.map((group) => (
-                  <section
-                    className="canvas-group"
-                    key={group.id ?? "ungrouped"}
-                  >
-                    <div className="group-heading">
-                      <strong>{group.name}</strong>
-                      <span>{group.diagrams.length}</span>
-                      <i />
-                    </div>
-                    <div className="compact-canvas-grid">
-                      {group.diagrams.map((diagram) => (
-                        <article
-                          className="compact-canvas-card"
-                          key={diagram.id}
-                        >
-                          <button
-                            className="canvas-thumb"
-                            onClick={() => void openDiagram(diagram)}
-                            aria-label={`Open ${diagram.name}`}
-                          >
-                            <SketchThumbnail />
-                          </button>
-                          <div className="canvas-card-copy">
-                            {editingDiagramId === diagram.id ? (
-                              <input
-                                className="inline-rename"
-                                autoFocus
-                                value={editingDiagramName}
-                                onChange={(event) =>
-                                  setEditingDiagramName(event.target.value)
-                                }
-                                onBlur={() => void commitDiagramRename(diagram)}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    void commitDiagramRename(diagram);
-                                  }
-                                  if (event.key === "Escape") {
-                                    setEditingDiagramId(null);
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <button
-                                className="canvas-name"
-                                onClick={() => void openDiagram(diagram)}
-                              >
-                                {diagram.name}
-                              </button>
-                            )}
-                            <span>{formatShortDate(diagram.updated_at)}</span>
-                          </div>
-                          <select
-                            className="canvas-group-select"
-                            value={diagram.task_id ?? ""}
-                            onChange={(event) =>
-                              void handleAssignDiagram(
-                                diagram,
-                                event.target.value,
-                              )
-                            }
-                            aria-label={`Group for ${diagram.name}`}
-                          >
-                            <option value="">Ungrouped</option>
-                            {tasks.map((task) => (
-                              <option key={task.id} value={task.id}>
-                                {task.title}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="canvas-card-actions">
-                            <button
-                              title="Rename"
-                              onClick={() => {
-                                setEditingDiagramId(diagram.id);
-                                setEditingDiagramName(diagram.name);
-                              }}
-                            >
-                              ✎
-                            </button>
-                            <button
-                              title="Delete"
-                              onClick={() => void handleDeleteDiagram(diagram)}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-
-                      <button
-                        className="new-canvas-placeholder"
-                        onClick={() => void handleCreateDiagram(group.id)}
+                <div className="canvas-groups">
+                  {diagramGroups.map((group) => {
+                    const groupRecord = group.id
+                      ? canvasGroups.find((item) => item.id === group.id) ?? null
+                      : null;
+                    return (
+                      <section
+                        className="canvas-group"
+                        key={group.id ?? "ungrouped"}
                       >
-                        <span>+</span>
-                        New canvas
-                      </button>
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
+                        <div className="group-heading">
+                          {group.id && editingGroupId === group.id ? (
+                            <input
+                              className="group-name-input"
+                              autoFocus
+                              value={editingGroupName}
+                              onChange={(event) =>
+                                setEditingGroupName(event.target.value)
+                              }
+                              onBlur={() => void commitGroupRename(group.id!)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  void commitGroupRename(group.id!);
+                                }
+                                if (event.key === "Escape") {
+                                  setEditingGroupId(null);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <strong>{group.name}</strong>
+                          )}
+                          <span>{group.diagrams.length}</span>
+                          <i />
+                          {groupRecord ? (
+                            <div className="group-heading-actions">
+                              <button
+                                title="Rename group"
+                                aria-label={`Rename ${group.name}`}
+                                onClick={() => {
+                                  setEditingGroupId(groupRecord.id);
+                                  setEditingGroupName(groupRecord.name);
+                                }}
+                              >
+                                ✎
+                              </button>
+                              <button
+                                title="Delete group"
+                                aria-label={`Delete ${group.name}`}
+                                onClick={() => handleDeleteGroup(groupRecord)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <span />
+                          )}
+                        </div>
+                        <div className="compact-canvas-grid">
+                          {group.diagrams.map((diagram) => (
+                            <article
+                              className="compact-canvas-card"
+                              key={diagram.id}
+                            >
+                              <button
+                                className="canvas-thumb"
+                                onClick={() => void openDiagram(diagram)}
+                                aria-label={`Open ${diagram.name}`}
+                              >
+                                <SketchThumbnail />
+                              </button>
+                              <div className="canvas-card-copy">
+                                {editingDiagramId === diagram.id ? (
+                                  <input
+                                    className="inline-rename"
+                                    autoFocus
+                                    value={editingDiagramName}
+                                    onChange={(event) =>
+                                      setEditingDiagramName(event.target.value)
+                                    }
+                                    onBlur={() =>
+                                      void commitDiagramRename(diagram)
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        void commitDiagramRename(diagram);
+                                      }
+                                      if (event.key === "Escape") {
+                                        setEditingDiagramId(null);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <button
+                                    className="canvas-name"
+                                    onClick={() => void openDiagram(diagram)}
+                                  >
+                                    {diagram.name}
+                                  </button>
+                                )}
+                                <span>{formatShortDate(diagram.updated_at)}</span>
+                              </div>
+                              <select
+                                className="canvas-group-select"
+                                value={diagram.group_id ?? ""}
+                                onChange={(event) =>
+                                  void handleAssignDiagram(
+                                    diagram,
+                                    event.target.value,
+                                  )
+                                }
+                                aria-label={`Group for ${diagram.name}`}
+                              >
+                                <option value="">Ungrouped</option>
+                                {canvasGroups.map((canvasGroup) => (
+                                  <option
+                                    key={canvasGroup.id}
+                                    value={canvasGroup.id}
+                                  >
+                                    {canvasGroup.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="canvas-card-actions">
+                                <button
+                                  title="Rename"
+                                  onClick={() => {
+                                    setEditingDiagramId(diagram.id);
+                                    setEditingDiagramName(diagram.name);
+                                  }}
+                                >
+                                  ✎
+                                </button>
+                                <button
+                                  title="Delete"
+                                  onClick={() => handleDeleteDiagram(diagram)}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </article>
+                          ))}
 
-        <aside className="right-sidebar">
-          <section className="focus-panel">
-            <p className="section-label">FOCUS</p>
-            {timerTask ? (
-              <>
-                <span className="focus-task-name" title={timerTask.title}>
-                  {timerTask.title}
-                </span>
-                <strong className="focus-time">
-                  {formatTimer(remainingSeconds)}
-                </strong>
-                <div className="focus-buttons">
-                  {!focus.session ? (
-                    <button
-                      className="focus-start"
-                      onClick={() => void handleStartFocus()}
-                    >
-                      Start
-                    </button>
-                  ) : focus.session.status === "paused" ? (
-                    <button
-                      className="focus-start"
-                      onClick={() => void focus.resume()}
-                    >
-                      Resume
-                    </button>
-                  ) : (
-                    <button
-                      className="focus-start"
-                      onClick={() => void focus.pause()}
-                    >
-                      Pause
-                    </button>
-                  )}
-                  {focus.session && (
+                          <button
+                            className="new-canvas-placeholder"
+                            onClick={() => void handleCreateDiagram(group.id)}
+                          >
+                            <span>+</span>
+                            New canvas
+                          </button>
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <aside className="right-sidebar">
+            <section className="focus-panel">
+              <p className="section-label">FOCUS</p>
+              {timerTask ? (
+                <>
+                  <span className="focus-task-name" title={timerTask.title}>
+                    {timerTask.title}
+                  </span>
+                  <strong className="focus-time">
+                    {formatTimer(remainingSeconds)}
+                  </strong>
+                  <div className="focus-buttons">
+                    {!focus.session ? (
+                      <button
+                        className="focus-start"
+                        onClick={() => void handleStartFocus()}
+                      >
+                        Start
+                      </button>
+                    ) : focus.session.status === "paused" ? (
+                      <button
+                        className="focus-start"
+                        onClick={() => void focus.resume()}
+                      >
+                        Resume
+                      </button>
+                    ) : (
+                      <button
+                        className="focus-start"
+                        onClick={() => void focus.pause()}
+                      >
+                        Pause
+                      </button>
+                    )}
+                    {focus.session && (
+                      <button
+                        className="focus-outline"
+                        onClick={() => void focus.finish()}
+                      >
+                        Finish
+                      </button>
+                    )}
                     <button
                       className="focus-outline"
-                      onClick={() => void focus.finish()}
+                      onClick={() => {
+                        adoptedSessionRef.current = true;
+                        setFocusId(null);
+                      }}
                     >
-                      Finish
+                      Clear
                     </button>
-                  )}
-                  <button
-                    className="focus-outline"
-                    onClick={() => {
-                      adoptedSessionRef.current = true;
-                      setFocusId(null);
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="no-focus-task">
-                <strong>—:—</strong>
-                <span>Select a task to focus</span>
-              </div>
-            )}
-          </section>
-
-          <section className="focus-summary">
-            <div>
-              <strong>{totalFocusedMinutes}</strong>
-              <span>MINUTES</span>
-            </div>
-            <div>
-              <strong>{sessions.length}</strong>
-              <span>SESSIONS</span>
-            </div>
-          </section>
-
-          <section className="recent-panel">
-            <p className="section-label">RECENT</p>
-            <div className="recent-list">
-              {sessions.slice(0, 8).length === 0 ? (
-                <div className="recent-empty">No sessions yet</div>
-              ) : (
-                sessions.slice(0, 8).map((session) => (
-                  <div className="recent-row" key={session.id}>
-                    <div>
-                      <strong title={session.task_title ?? "Focus session"}>
-                        {session.task_title ?? "Focus session"}
-                      </strong>
-                      <span>
-                        {formatClock(session.started_at)}
-                        {session.ended_at
-                          ? `–${formatClock(session.ended_at)}`
-                          : ""}
-                        {session.status === "cancelled"
-                          ? " · cancelled"
-                          : ""}
-                      </span>
-                    </div>
-                    <b>
-                      {Math.max(1, Math.round(session.actual_seconds / 60))}m
-                    </b>
                   </div>
-                ))
+                </>
+              ) : (
+                <div className="no-focus-task">
+                  <strong>—:—</strong>
+                  <span>Select a task to focus</span>
+                </div>
               )}
-            </div>
-          </section>
-        </aside>
-      </div>
+            </section>
 
-      <footer className="statusbar">
-        <span>Local workspace · all data on this device</span>
-        <span>
-          {doneCount}/{tasks.length} tasks done · {diagrams.length} canvases
-        </span>
-      </footer>
-    </main>
+            <section className="focus-summary">
+              <div>
+                <strong>{totalFocusedMinutes}</strong>
+                <span>MINUTES</span>
+              </div>
+              <div>
+                <strong>{sessions.length}</strong>
+                <span>SESSIONS</span>
+              </div>
+            </section>
+
+            <section className="recent-panel">
+              <p className="section-label">RECENT</p>
+              <div className="recent-list">
+                {sessions.slice(0, 8).length === 0 ? (
+                  <div className="recent-empty">No sessions yet</div>
+                ) : (
+                  sessions.slice(0, 8).map((session) => (
+                    <div className="recent-row" key={session.id}>
+                      <div>
+                        <strong title={session.task_title ?? "Focus session"}>
+                          {session.task_title ?? "Focus session"}
+                        </strong>
+                        <span>
+                          {formatClock(session.started_at)}
+                          {session.ended_at
+                            ? `–${formatClock(session.ended_at)}`
+                            : ""}
+                          {session.status === "cancelled"
+                            ? " · cancelled"
+                            : ""}
+                        </span>
+                      </div>
+                      <b>
+                        {Math.max(1, Math.round(session.actual_seconds / 60))}m
+                      </b>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <footer className="statusbar">
+          <span>Local workspace · optional Drive sync in Settings</span>
+          <span>
+            {doneCount}/{tasks.length} tasks done · {diagrams.length} canvases
+          </span>
+        </footer>
+      </main>
+
+      <ConfirmDialog
+        open={confirmation !== null}
+        title={confirmation?.title ?? "Confirm action"}
+        message={confirmation?.message ?? ""}
+        confirmLabel={confirmation?.confirmLabel ?? "Confirm"}
+        busy={confirmationBusy}
+        onCancel={() => {
+          if (!confirmationBusy) {
+            setConfirmation(null);
+          }
+        }}
+        onConfirm={() => void runConfirmation()}
+      />
+    </>
   );
 }

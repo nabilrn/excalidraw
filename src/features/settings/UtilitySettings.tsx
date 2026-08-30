@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import {
+  GOOGLE_CLIENT_ID,
+  connectGoogleDrive,
+  getLastSyncAt,
+  syncWorkspaceWithDrive,
+  type GoogleAccount,
+  type SyncResult,
+} from "../sync/googleDriveSync";
 import { getSetting, setSetting } from "./settingsRepository";
 import "./settings.css";
 
 const FONT_SCALE_KEY = "utility_font_scale";
+const AUTO_SYNC_KEY = "drive_auto_sync";
 const MIN_SCALE = 85;
 const MAX_SCALE = 140;
 const DEFAULT_SCALE = 100;
@@ -26,28 +36,57 @@ const presets = [
   { label: "XL", value: 130 },
 ];
 
+type SyncState = "idle" | "connecting" | "connected" | "syncing" | "conflict" | "error";
+type PendingDriveAction = "disconnect" | "push" | "pull" | null;
+
+function formatSyncTime(timestamp: number | null) {
+  if (!timestamp) {
+    return "Never synced";
+  }
+  return `Last synced ${new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp))}`;
+}
+
 export function UtilitySettings() {
   const [open, setOpen] = useState(false);
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [portalTarget, setPortalTarget] = useState<Element | null>(null);
   const [saved, setSaved] = useState(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [account, setAccount] = useState<GoogleAccount | null>(null);
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const [syncMessage, setSyncMessage] = useState("Local data has not been connected to Drive.");
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [autoSync, setAutoSync] = useState(false);
+  const [pendingDriveAction, setPendingDriveAction] =
+    useState<PendingDriveAction>(null);
   const saveTimerRef = useRef<number | null>(null);
   const loadedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    void getSetting(FONT_SCALE_KEY)
-      .then((value) => {
+    void Promise.all([
+      getSetting(FONT_SCALE_KEY),
+      getSetting(AUTO_SYNC_KEY),
+      getLastSyncAt(),
+    ])
+      .then(([fontValue, autoValue, syncAt]) => {
         if (cancelled) {
           return;
         }
-        const parsed = value ? Number(value) : DEFAULT_SCALE;
+        const parsed = fontValue ? Number(fontValue) : DEFAULT_SCALE;
         const next = Number.isFinite(parsed)
           ? clampScale(parsed)
           : DEFAULT_SCALE;
         setScale(next);
         applyScale(next);
+        setAutoSync(autoValue === "true");
+        setLastSyncAt(syncAt);
       })
       .catch((cause) => {
         console.error(cause);
@@ -110,7 +149,130 @@ export function UtilitySettings() {
     };
   }, [scale]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pendingDriveAction) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, pendingDriveAction]);
+
+  const runSync = useCallback(
+    async (token: string, strategy: "auto" | "push" | "pull" = "auto") => {
+      setSyncState("syncing");
+      setSyncMessage("Syncing workspace…");
+      try {
+        const result: SyncResult = await syncWorkspaceWithDrive(token, strategy);
+        if (result.status === "conflict") {
+          setSyncState("conflict");
+          setSyncMessage(
+            "This device and the Drive copy both changed. Nothing was overwritten.",
+          );
+          return;
+        }
+
+        setLastSyncAt(result.syncedAt);
+        setSyncState("connected");
+        setSyncMessage(
+          result.status === "uploaded"
+            ? "This device was backed up to Drive."
+            : result.status === "downloaded"
+              ? "Drive data was restored to this device."
+              : "Workspace is already up to date.",
+        );
+      } catch (cause) {
+        console.error(cause);
+        setSyncState("error");
+        setSyncMessage(
+          cause instanceof Error ? cause.message : "Google Drive sync failed.",
+        );
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!accessToken || !autoSync) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      void runSync(accessToken);
+    }, 120_000);
+    return () => window.clearInterval(interval);
+  }, [accessToken, autoSync, runSync]);
+
   const setFontScale = (value: number) => setScale(clampScale(value));
+
+  const handleConnect = async () => {
+    setSyncState("connecting");
+    setSyncMessage("Opening Google OAuth…");
+    try {
+      const connected = await connectGoogleDrive();
+      setAccessToken(connected.accessToken);
+      setAccount(connected.account);
+      setSyncState("connected");
+      setSyncMessage("Connected. Checking workspace state…");
+      await runSync(connected.accessToken);
+    } catch (cause) {
+      console.error(cause);
+      setSyncState("error");
+      setSyncMessage(
+        cause instanceof Error ? cause.message : "Could not connect Google Drive.",
+      );
+    }
+  };
+
+  const handleAutoSync = (enabled: boolean) => {
+    setAutoSync(enabled);
+    void setSetting(AUTO_SYNC_KEY, String(enabled)).catch(console.error);
+  };
+
+  const confirmDriveAction = async () => {
+    const action = pendingDriveAction;
+    setPendingDriveAction(null);
+    if (!action) {
+      return;
+    }
+
+    if (action === "disconnect") {
+      setAccessToken(null);
+      setAccount(null);
+      setSyncState("idle");
+      setSyncMessage("Google Drive disconnected for this app session.");
+      return;
+    }
+
+    if (accessToken) {
+      await runSync(accessToken, action);
+    }
+  };
+
+  const pendingDialogCopy =
+    pendingDriveAction === "disconnect"
+      ? {
+          title: "Disconnect Google Drive?",
+          message:
+            "Local workspace data stays on this device. Automatic sync stops until you connect again.",
+          label: "Disconnect",
+        }
+      : pendingDriveAction === "push"
+        ? {
+            title: "Replace the Drive copy?",
+            message:
+              "The current workspace on this device will become the Drive copy. Use this only if this device has the version you want to keep.",
+            label: "Use this device",
+          }
+        : {
+            title: "Replace local workspace?",
+            message:
+              "The Drive copy will replace this device's workspace. Local changes that are not in Drive will be lost.",
+            label: "Use Drive copy",
+          };
 
   return (
     <>
@@ -118,7 +280,7 @@ export function UtilitySettings() {
         createPortal(
           <button
             className={`utility-settings-launcher ${open ? "is-active" : ""}`}
-            onClick={() => setOpen((value) => !value)}
+            onClick={() => setOpen(true)}
             aria-expanded={open}
             aria-label="Open utility settings"
           >
@@ -127,80 +289,182 @@ export function UtilitySettings() {
           portalTarget,
         )}
 
-      {open && portalTarget && (
-        <section className="utility-settings-page" aria-label="Settings">
-          <div className="utility-settings-shell">
-            <header className="utility-settings-heading">
-              <div>
-                <p>SETTINGS</p>
-                <h1>Workspace utility</h1>
-                <span>
-                  Controls the FocusCanvas home interface only. Canvas and
-                  Excalidraw editor sizing stay unchanged.
-                </span>
-              </div>
-              <button onClick={() => setOpen(false)}>Done</button>
-            </header>
-
-            <div className="utility-setting-card">
-              <div className="utility-setting-copy">
+      {open && portalTarget &&
+        createPortal(
+          <div
+            className="utility-settings-backdrop"
+            role="presentation"
+            onMouseDown={() => setOpen(false)}
+          >
+            <section
+              className="utility-settings-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="utility-settings-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <header className="utility-settings-heading">
                 <div>
-                  <p>INTERFACE</p>
-                  <h2>Font size</h2>
+                  <p>SETTINGS</p>
+                  <h1 id="utility-settings-title">Workspace utility</h1>
+                  <span>
+                    Home workspace preferences and optional Google Drive sync.
+                    Excalidraw editor sizing stays unchanged.
+                  </span>
                 </div>
-                <strong>{scale}%</strong>
-              </div>
-
-              <input
-                className="utility-font-slider"
-                type="range"
-                min={MIN_SCALE}
-                max={MAX_SCALE}
-                step={5}
-                value={scale}
-                onChange={(event) => setFontScale(Number(event.target.value))}
-                aria-label="Workspace font size"
-              />
-
-              <div className="utility-scale-labels">
-                <span>Smaller</span>
-                <span>Default</span>
-                <span>Larger</span>
-              </div>
-
-              <div className="utility-presets">
-                {presets.map((preset) => (
-                  <button
-                    className={scale === preset.value ? "is-active" : ""}
-                    key={preset.label}
-                    onClick={() => setFontScale(preset.value)}
-                  >
-                    <strong>{preset.label}</strong>
-                    <span>{preset.value}%</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="utility-preview">
-                <p>LIVE PREVIEW</p>
-                <div className="utility-preview-row">
-                  <span className="utility-preview-check" />
-                  <strong>Review infrastructure notes</strong>
-                  <span>120m</span>
-                </div>
-                <div className="utility-preview-timer">45:00</div>
-              </div>
-
-              <footer className="utility-setting-footer">
-                <span>{saved ? "Saved locally" : "Saving…"}</span>
-                <button onClick={() => setFontScale(DEFAULT_SCALE)}>
-                  Reset to default
+                <button
+                  className="utility-settings-close"
+                  aria-label="Close settings"
+                  onClick={() => setOpen(false)}
+                >
+                  ×
                 </button>
-              </footer>
-            </div>
-          </div>
-        </section>
-      )}
+              </header>
+
+              <div className="utility-settings-content">
+                <section className="utility-setting-card">
+                  <div className="utility-setting-copy">
+                    <div>
+                      <p>INTERFACE</p>
+                      <h2>Font size</h2>
+                    </div>
+                    <strong>{scale}%</strong>
+                  </div>
+
+                  <input
+                    className="utility-font-slider"
+                    type="range"
+                    min={MIN_SCALE}
+                    max={MAX_SCALE}
+                    step={5}
+                    value={scale}
+                    onChange={(event) => setFontScale(Number(event.target.value))}
+                    aria-label="Workspace font size"
+                  />
+
+                  <div className="utility-scale-labels">
+                    <span>Smaller</span>
+                    <span>Default</span>
+                    <span>Larger</span>
+                  </div>
+
+                  <div className="utility-presets">
+                    {presets.map((preset) => (
+                      <button
+                        className={scale === preset.value ? "is-active" : ""}
+                        key={preset.label}
+                        onClick={() => setFontScale(preset.value)}
+                      >
+                        <strong>{preset.label}</strong>
+                        <span>{preset.value}%</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <footer className="utility-setting-footer">
+                    <span>{saved ? "Saved locally" : "Saving…"}</span>
+                    <button onClick={() => setFontScale(DEFAULT_SCALE)}>
+                      Reset to default
+                    </button>
+                  </footer>
+                </section>
+
+                <section className="utility-setting-card drive-setting-card">
+                  <div className="utility-setting-copy">
+                    <div>
+                      <p>SYNC</p>
+                      <h2>Google Drive</h2>
+                    </div>
+                    <span className={`drive-status-dot is-${syncState}`} />
+                  </div>
+
+                  {!GOOGLE_CLIENT_ID ? (
+                    <div className="drive-config-note">
+                      <strong>OAuth client not configured</strong>
+                      <span>
+                        Set <code>VITE_GOOGLE_CLIENT_ID</code> for the desktop
+                        build. FocusCanvas requests only the hidden Drive
+                        app-data scope plus basic Google identity.
+                      </span>
+                    </div>
+                  ) : account && accessToken ? (
+                    <div className="drive-account-row">
+                      <div>
+                        <strong>{account.name}</strong>
+                        <span>{account.email}</span>
+                      </div>
+                      <button onClick={() => setPendingDriveAction("disconnect")}>
+                        Disconnect
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="drive-connect-button"
+                      disabled={syncState === "connecting"}
+                      onClick={() => void handleConnect()}
+                    >
+                      {syncState === "connecting"
+                        ? "Connecting…"
+                        : "Connect Google Drive"}
+                    </button>
+                  )}
+
+                  <div className="drive-sync-copy">
+                    <span>{syncMessage}</span>
+                    <strong>{formatSyncTime(lastSyncAt)}</strong>
+                  </div>
+
+                  {accessToken && account && (
+                    <>
+                      <div className="drive-controls">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={autoSync}
+                            onChange={(event) =>
+                              handleAutoSync(event.target.checked)
+                            }
+                          />
+                          <span>Sync automatically while FocusCanvas is open</span>
+                        </label>
+                        <button
+                          disabled={syncState === "syncing"}
+                          onClick={() => void runSync(accessToken)}
+                        >
+                          {syncState === "syncing" ? "Syncing…" : "Sync now"}
+                        </button>
+                      </div>
+
+                      {syncState === "conflict" && (
+                        <div className="drive-conflict-actions">
+                          <span>Choose which copy should win:</span>
+                          <div>
+                            <button onClick={() => setPendingDriveAction("push")}>
+                              Use this device
+                            </button>
+                            <button onClick={() => setPendingDriveAction("pull")}>
+                              Use Drive copy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+
+      <ConfirmDialog
+        open={pendingDriveAction !== null}
+        title={pendingDialogCopy.title}
+        message={pendingDialogCopy.message}
+        confirmLabel={pendingDialogCopy.label}
+        onCancel={() => setPendingDriveAction(null)}
+        onConfirm={() => void confirmDriveAction()}
+      />
     </>
   );
 }

@@ -94,6 +94,36 @@ pub fn run() {
             "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "add_independent_canvas_groups",
+            sql: r#"
+                CREATE TABLE IF NOT EXISTS canvas_groups (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+
+                ALTER TABLE diagrams
+                    ADD COLUMN group_id TEXT REFERENCES canvas_groups(id) ON DELETE SET NULL;
+
+                INSERT OR IGNORE INTO canvas_groups (id, name, created_at, updated_at)
+                SELECT tasks.id, tasks.title, tasks.created_at, tasks.updated_at
+                FROM tasks
+                WHERE EXISTS (
+                    SELECT 1 FROM diagrams WHERE diagrams.task_id = tasks.id
+                );
+
+                UPDATE diagrams
+                SET group_id = task_id
+                WHERE task_id IS NOT NULL AND group_id IS NULL;
+
+                CREATE INDEX IF NOT EXISTS idx_diagrams_group_id
+                    ON diagrams(group_id);
+            "#,
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()

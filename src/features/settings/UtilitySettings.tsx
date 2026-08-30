@@ -12,6 +12,7 @@ import {
   type GoogleAccount,
   type SyncResult,
 } from "../sync/googleDriveSync";
+import { openGoogleAuthorizationUrl } from "../sync/nativeGoogleAuth";
 import { getSetting, setSetting } from "./settingsRepository";
 import "./settings.css";
 
@@ -69,6 +70,26 @@ function errorMessage(cause: unknown, fallback: string) {
   return fallback;
 }
 
+async function copyText(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) {
+      throw new Error("Could not copy the Google authorization link.");
+    }
+  }
+}
+
 export function UtilitySettings() {
   const [open, setOpen] = useState(false);
   const [scale, setScale] = useState(DEFAULT_SCALE);
@@ -85,6 +106,9 @@ export function UtilitySettings() {
   const [autoSync, setAutoSync] = useState(false);
   const [pendingDriveAction, setPendingDriveAction] =
     useState<PendingDriveAction>(null);
+  const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
+  const [authorizationCopied, setAuthorizationCopied] = useState(false);
+  const [authorizationOpening, setAuthorizationOpening] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
   const loadedRef = useRef(false);
 
@@ -207,13 +231,17 @@ export function UtilitySettings() {
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !pendingDriveAction) {
+      if (
+        event.key === "Escape" &&
+        !pendingDriveAction &&
+        !authorizationUrl
+      ) {
         setOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, pendingDriveAction]);
+  }, [open, pendingDriveAction, authorizationUrl]);
 
   const runSync = useCallback(
     async (token: string, strategy: "auto" | "push" | "pull" = "auto") => {
@@ -298,9 +326,16 @@ export function UtilitySettings() {
 
   const handleConnect = async () => {
     setSyncState("connecting");
-    setSyncMessage("Opening Google in your browser…");
+    setAuthorizationUrl(null);
+    setAuthorizationCopied(false);
+    setSyncMessage("Preparing Google authorization…");
     try {
-      const connected = await connectGoogleDrive();
+      const connected = await connectGoogleDrive((url) => {
+        setAuthorizationUrl(url);
+        setAuthorizationCopied(false);
+        setSyncMessage("Finish signing in with Google in your browser.");
+      });
+      setAuthorizationUrl(null);
       setAccessToken(connected.accessToken);
       setTokenExpiresAt(connected.expiresAt);
       setAccount(connected.account);
@@ -309,8 +344,41 @@ export function UtilitySettings() {
       await runSync(connected.accessToken);
     } catch (cause) {
       console.error(cause);
+      setAuthorizationUrl(null);
       setSyncState("error");
       setSyncMessage(errorMessage(cause, "Could not connect Google Drive."));
+    }
+  };
+
+  const handleOpenAuthorizationUrl = async () => {
+    if (!authorizationUrl) {
+      return;
+    }
+    setAuthorizationOpening(true);
+    try {
+      await openGoogleAuthorizationUrl(authorizationUrl);
+      setSyncMessage("Google sign-in opened in your browser.");
+    } catch (cause) {
+      console.error(cause);
+      setSyncMessage(
+        `${errorMessage(cause, "Could not open your browser.")} Copy the link and paste it into your browser instead.`,
+      );
+    } finally {
+      setAuthorizationOpening(false);
+    }
+  };
+
+  const handleCopyAuthorizationUrl = async () => {
+    if (!authorizationUrl) {
+      return;
+    }
+    try {
+      await copyText(authorizationUrl);
+      setAuthorizationCopied(true);
+      setSyncMessage("Authorization link copied. Paste it into any browser.");
+    } catch (cause) {
+      console.error(cause);
+      setSyncMessage(errorMessage(cause, "Could not copy the authorization link."));
     }
   };
 
@@ -387,7 +455,11 @@ export function UtilitySettings() {
           <div
             className="utility-settings-backdrop"
             role="presentation"
-            onMouseDown={() => setOpen(false)}
+            onMouseDown={() => {
+              if (!authorizationUrl) {
+                setOpen(false);
+              }
+            }}
           >
             <section
               className="utility-settings-dialog"
@@ -408,6 +480,7 @@ export function UtilitySettings() {
                 <button
                   className="utility-settings-close"
                   aria-label="Close settings"
+                  disabled={Boolean(authorizationUrl)}
                   onClick={() => setOpen(false)}
                 >
                   ×
@@ -497,7 +570,7 @@ export function UtilitySettings() {
                       onClick={() => void handleConnect()}
                     >
                       {syncState === "connecting"
-                        ? "Connecting…"
+                        ? "Waiting for Google…"
                         : "Connect Google Drive"}
                     </button>
                   )}
@@ -545,6 +618,56 @@ export function UtilitySettings() {
                   )}
                 </section>
               </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+
+      {authorizationUrl &&
+        createPortal(
+          <div className="drive-oauth-backdrop" role="presentation">
+            <section
+              className="drive-oauth-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="drive-oauth-title"
+            >
+              <p className="drive-oauth-eyebrow">GOOGLE AUTHORIZATION</p>
+              <h2 id="drive-oauth-title">Continue in your browser</h2>
+              <p className="drive-oauth-description">
+                FocusCanvas tried to open Google automatically. If nothing
+                opened, use the button below or copy the link and paste it into
+                Chrome, Firefox, or Edge.
+              </p>
+
+              <label className="drive-oauth-url-field">
+                <span>Authorization link</span>
+                <input
+                  value={authorizationUrl}
+                  readOnly
+                  onFocus={(event) => event.currentTarget.select()}
+                  aria-label="Google authorization link"
+                />
+              </label>
+
+              <div className="drive-oauth-actions">
+                <button
+                  className="drive-oauth-primary"
+                  disabled={authorizationOpening}
+                  onClick={() => void handleOpenAuthorizationUrl()}
+                >
+                  {authorizationOpening ? "Opening…" : "Open browser"}
+                </button>
+                <button onClick={() => void handleCopyAuthorizationUrl()}>
+                  {authorizationCopied ? "Copied" : "Copy link"}
+                </button>
+              </div>
+
+              <p className="drive-oauth-waiting">
+                Waiting for Google… Keep FocusCanvas open. After approval,
+                Google redirects to the local FocusCanvas callback and this
+                dialog closes automatically.
+              </p>
             </section>
           </div>,
           document.body,

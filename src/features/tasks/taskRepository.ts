@@ -18,6 +18,11 @@ function notifyTasksChanged() {
   window.dispatchEvent(new Event("focuscanvas:tasks-changed"));
 }
 
+function notifyWorkspaceChanged() {
+  // App.tsx already refreshes all workspace collections on this event.
+  window.dispatchEvent(new Event("focuscanvas:workspace-synced"));
+}
+
 export async function listTasks(): Promise<TaskRecord[]> {
   const database = await getDatabase();
   return database.select<TaskRecord[]>(
@@ -49,27 +54,44 @@ export async function createTask(
     completed_at: null,
   };
 
-  await database.execute(
-    `INSERT INTO tasks (
-       id, title, description, status, priority, estimated_minutes,
-       due_at, linked_diagram_id, created_at, updated_at, completed_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      task.id,
-      task.title,
-      task.description,
-      task.status,
-      task.priority,
-      task.estimated_minutes,
-      task.due_at,
-      task.linked_diagram_id,
-      task.created_at,
-      task.updated_at,
-      task.completed_at,
-    ],
-  );
+  await database.execute("BEGIN TRANSACTION");
+  try {
+    await database.execute(
+      `INSERT INTO tasks (
+         id, title, description, status, priority, estimated_minutes,
+         due_at, linked_diagram_id, created_at, updated_at, completed_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        task.id,
+        task.title,
+        task.description,
+        task.status,
+        task.priority,
+        task.estimated_minutes,
+        task.due_at,
+        task.linked_diagram_id,
+        task.created_at,
+        task.updated_at,
+        task.completed_at,
+      ],
+    );
+
+    // Task groups deliberately reuse the task id. This preserves the mapping
+    // without adding another schema column while manual groups keep UUID ids.
+    await database.execute(
+      `INSERT INTO canvas_groups (id, name, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [task.id, task.title, task.created_at, task.updated_at],
+    );
+
+    await database.execute("COMMIT");
+  } catch (cause) {
+    await database.execute("ROLLBACK");
+    throw cause;
+  }
 
   notifyTasksChanged();
+  notifyWorkspaceChanged();
   return task;
 }
 

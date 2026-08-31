@@ -6,7 +6,17 @@ FocusCanvas keeps the working copy in local SQLite and adds an optional Google D
 
 [Download the latest Windows release](https://github.com/nabilrn/excalidraw/releases/latest)
 
-![FocusCanvas tasks home with handwritten calendar](docs/screenshots/focuscanvas-tasks.webp)
+## Tasks & handwritten calendar
+
+Track tasks, focus duration, completed days, and recent focus sessions from one compact desktop workspace.
+
+![FocusCanvas Tasks workspace with handwritten calendar](docs/screenshots/focuscanvas-tasks-current.webp)
+
+## Task-backed canvas groups
+
+Every task automatically gets a matching canvas group, so related diagrams stay organized without extra setup. Manual groups and Ungrouped canvases still remain available.
+
+![FocusCanvas Canvases workspace with task-backed groups](docs/screenshots/focuscanvas-canvases-current.webp)
 
 ## Features
 
@@ -14,7 +24,7 @@ FocusCanvas keeps the working copy in local SQLite and adds an optional Google D
 - Tasks with estimated focus duration and completion tracking.
 - Focus timer with session history and accumulated minutes.
 - Handwritten monthly calendar that marks completed-task days.
-- Excalidraw-powered canvases with persistent independent canvas groups.
+- Excalidraw-powered canvases with automatic task-backed groups plus optional manual groups.
 - Local SQLite workspace storage.
 - Optional Google Drive sync using the private `appDataFolder` scope.
 - Native desktop Google OAuth using the system browser, PKCE, and loopback callback.

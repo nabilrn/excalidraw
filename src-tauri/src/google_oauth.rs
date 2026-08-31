@@ -23,6 +23,35 @@ const KEYRING_SERVICE: &str = "com.nabilrn.focuscanvas.google-oauth";
 const KEYRING_USER: &str = "google-drive-refresh-token";
 const AUTH_URL_EVENT: &str = "focuscanvas-google-oauth-url";
 
+const CALLBACK_PAGE_STYLE: &str = r#"
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Patrick+Hand&display=swap');
+:root{color:#111;background:#f7f7f7;font-family:'Patrick Hand',ui-rounded,system-ui,sans-serif;font-synthesis:none}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{background:#f7f7f7;color:#111}
+.topbar{display:flex;height:40px;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid #e5e5e5;background:#fff}
+.brand{font-family:'Caveat',cursive;font-size:20px;font-weight:700;letter-spacing:-.02em}
+.local{color:#c5c5c5;font-size:12px}
+.shell{display:grid;min-height:calc(100vh - 40px);place-items:center;padding:28px}
+.card{width:min(560px,100%);overflow:hidden;border:1px solid #ccc;border-radius:4px 7px 5px 8px/7px 4px 8px 5px;background:#fff;box-shadow:2px 3px 0 rgba(0,0,0,.035)}
+.card-head{padding:18px 20px 16px;border-bottom:1px dashed #ddd}
+.eyebrow{margin:0 0 2px;color:#999;font-size:11px;letter-spacing:.09em}
+.drive{margin:0;font-family:'Caveat',cursive;font-size:29px;font-weight:700;letter-spacing:-.025em;line-height:1}
+.content{padding:22px 20px 20px}
+.state{display:flex;align-items:flex-start;gap:13px}
+.state-icon{display:grid;width:30px;height:30px;flex:0 0 30px;place-items:center;margin-top:1px;border:1px solid #bdbdbd;border-radius:48% 52% 46% 54%/55% 45% 58% 42%;font-family:'Caveat',cursive;font-size:20px;font-weight:700;transform:rotate(-3deg)}
+.state-icon.success{border-color:#111;background:#111;color:#fff}
+.state-icon.failure{color:#555}
+h1{margin:0 0 5px;font-family:'Caveat',cursive;font-size:25px;font-weight:700;line-height:1.1}
+p{max-width:430px;margin:0;color:#666;font-size:14px;line-height:1.45}
+.actions{display:flex;align-items:center;gap:8px;margin-top:20px;padding-top:15px;border-top:1px dashed #e5e5e5}
+.button{display:inline-flex;height:31px;align-items:center;padding:0 13px;border:1px solid #111;border-radius:3px 5px 4px 6px/5px 3px 6px 4px;background:#111;color:#fff;font-size:12px;text-decoration:none}
+.button:hover{background:#292929}
+.hint{color:#bbb;font-family:'Caveat',cursive;font-size:12px}
+.footer{display:flex;justify-content:space-between;padding:8px 20px;border-top:1px solid #eee;background:#fafafa;color:#c0c0c0;font-size:10px}
+@media(max-width:600px){.shell{padding:18px}.local{display:none}.card-head,.content{padding-left:16px;padding-right:16px}.footer{padding-left:16px;padding-right:16px}}
+"#;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GoogleAccount {
@@ -95,36 +124,85 @@ fn write_html_response(stream: &mut TcpStream, body: &str) {
     let _ = stream.flush();
 }
 
+fn callback_page(
+    title: &str,
+    heading: &str,
+    message: &str,
+    success: bool,
+    action: &str,
+    auto_close: bool,
+) -> String {
+    let icon = if success { "✓" } else { "!" };
+    let icon_class = if success { "state-icon success" } else { "state-icon failure" };
+    let script = if auto_close {
+        "<script>setTimeout(function(){window.close()},250)</script>"
+    } else {
+        ""
+    };
+
+    format!(
+        r#"<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<style>{CALLBACK_PAGE_STYLE}</style>
+</head>
+<body>
+<header class="topbar"><span class="brand">FocusCanvas</span><span class="local">local workspace</span></header>
+<main class="shell">
+  <section class="card">
+    <header class="card-head"><p class="eyebrow">SYNC</p><h2 class="drive">Google Drive</h2></header>
+    <div class="content">
+      <div class="state">
+        <span class="{icon_class}">{icon}</span>
+        <div><h1>{heading}</h1><p>{message}</p></div>
+      </div>
+      <div class="actions">{action}<span class="hint">You can close this tab after returning.</span></div>
+    </div>
+    <footer class="footer"><span>OAuth callback</span><span>FocusCanvas desktop</span></footer>
+  </section>
+</main>
+{script}
+</body>
+</html>"#
+    )
+}
+
 fn browser_response(stream: &mut TcpStream, success: bool, return_url: Option<&str>) {
-    let (title, message) = if success {
+    let (title, heading, message) = if success {
         (
-            "FocusCanvas authorization received",
+            "FocusCanvas · Google Drive",
+            "Authorization received",
             "Google approved the request. FocusCanvas is finishing the Drive connection now.",
         )
     } else {
         (
-            "FocusCanvas authorization failed",
+            "FocusCanvas · Google Drive",
+            "Authorization interrupted",
             "The Google authorization request was not completed. Return to FocusCanvas for details.",
         )
     };
 
     let return_action = return_url
-        .map(|url| {
-            format!(
-                "<a class=\"button\" href=\"{url}\">Return to FocusCanvas</a>"
-            )
-        })
+        .map(|url| format!("<a class=\"button\" href=\"{url}\">Return to FocusCanvas</a>"))
         .unwrap_or_default();
 
-    let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{title}</title><style>body{{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:72px auto;padding:0 24px;color:#111}}h1{{font-size:24px}}p{{line-height:1.6;color:#555}}.button{{display:inline-block;margin-top:10px;padding:10px 14px;border-radius:7px;background:#111;color:#fff;text-decoration:none;font-weight:600}}</style></head><body><h1>{title}</h1><p>{message}</p>{return_action}</body></html>"
-    );
+    let body = callback_page(title, heading, message, success, &return_action, false);
     write_html_response(stream, &body);
 }
 
 fn browser_return_response(stream: &mut TcpStream) {
-    let body = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Returning to FocusCanvas</title><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:72px auto;padding:0 24px;color:#111}h1{font-size:24px}p{line-height:1.6;color:#555}</style></head><body><h1>Returning to FocusCanvas</h1><p>FocusCanvas has been brought to the foreground. You can close this tab.</p><script>setTimeout(function(){window.close()},150)</script></body></html>";
-    write_html_response(stream, body);
+    let body = callback_page(
+        "FocusCanvas · Google Drive",
+        "Back to FocusCanvas",
+        "FocusCanvas has been brought to the foreground. This browser tab can close now.",
+        true,
+        "",
+        true,
+    );
+    write_html_response(stream, &body);
 }
 
 fn start_return_listener(

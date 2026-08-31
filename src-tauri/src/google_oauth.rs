@@ -9,7 +9,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use url::Url;
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -18,6 +18,7 @@ const USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
 const REVOKE_ENDPOINT: &str = "https://oauth2.googleapis.com/revoke";
 const DRIVE_SCOPE: &str = "openid email profile https://www.googleapis.com/auth/drive.appdata";
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(180);
+const RETURN_TIMEOUT: Duration = Duration::from_secs(120);
 const KEYRING_SERVICE: &str = "com.nabilrn.focuscanvas.google-oauth";
 const KEYRING_USER: &str = "google-drive-refresh-token";
 const AUTH_URL_EVENT: &str = "focuscanvas-google-oauth-url";
@@ -70,11 +71,35 @@ fn unix_time_ms() -> u64 {
         .as_millis() as u64
 }
 
-fn browser_response(stream: &mut TcpStream, success: bool) {
+fn configured_client_secret() -> Option<&'static str> {
+    option_env!("FOCUSCANVAS_GOOGLE_CLIENT_SECRET").and_then(|value| {
+        let value = value.trim();
+        (!value.is_empty()).then_some(value)
+    })
+}
+
+fn focus_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn write_html_response(stream: &mut TcpStream, body: &str) {
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let _ = stream.write_all(response.as_bytes());
+    let _ = stream.flush();
+}
+
+fn browser_response(stream: &mut TcpStream, success: bool, return_url: Option<&str>) {
     let (title, message) = if success {
         (
-            "FocusCanvas connected",
-            "Google Drive is connected. You can close this tab and return to FocusCanvas.",
+            "FocusCanvas authorization received",
+            "Google approved the request. FocusCanvas is finishing the Drive connection now.",
         )
     } else {
         (
@@ -83,25 +108,97 @@ fn browser_response(stream: &mut TcpStream, success: bool) {
         )
     };
 
+    let return_action = return_url
+        .map(|url| {
+            format!(
+                "<a class=\"button\" href=\"{url}\">Return to FocusCanvas</a>"
+            )
+        })
+        .unwrap_or_default();
+
     let body = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{title}</title><style>body{{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:72px auto;padding:0 24px;color:#111}}h1{{font-size:24px}}p{{line-height:1.6;color:#555}}</style></head><body><h1>{title}</h1><p>{message}</p></body></html>"
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{title}</title><style>body{{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:72px auto;padding:0 24px;color:#111}}h1{{font-size:24px}}p{{line-height:1.6;color:#555}}.button{{display:inline-block;margin-top:10px;padding:10px 14px;border-radius:7px;background:#111;color:#fff;text-decoration:none;font-weight:600}}</style></head><body><h1>{title}</h1><p>{message}</p>{return_action}</body></html>"
     );
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{}",
-        body.as_bytes().len(),
-        body
-    );
-    let _ = stream.write_all(response.as_bytes());
-    let _ = stream.flush();
+    write_html_response(stream, &body);
+}
+
+fn browser_return_response(stream: &mut TcpStream) {
+    let body = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Returning to FocusCanvas</title><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:72px auto;padding:0 24px;color:#111}h1{font-size:24px}p{line-height:1.6;color:#555}</style></head><body><h1>Returning to FocusCanvas</h1><p>FocusCanvas has been brought to the foreground. You can close this tab.</p><script>setTimeout(function(){window.close()},150)</script></body></html>";
+    write_html_response(stream, body);
+}
+
+fn start_return_listener(
+    listener: &TcpListener,
+    app: tauri::AppHandle,
+    expected_token: String,
+) {
+    let Ok(listener) = listener.try_clone() else {
+        return;
+    };
+
+    thread::spawn(move || {
+        if listener.set_nonblocking(true).is_err() {
+            return;
+        }
+
+        let deadline = Instant::now() + RETURN_TIMEOUT;
+        while Instant::now() < deadline {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let mut buffer = [0_u8; 8 * 1024];
+                    let Ok(bytes_read) = stream.read(&mut buffer) else {
+                        continue;
+                    };
+                    if bytes_read == 0 {
+                        continue;
+                    }
+
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                    let request_target = request
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("/");
+                    let Ok(url) = Url::parse(&format!("http://127.0.0.1{request_target}")) else {
+                        continue;
+                    };
+
+                    let returned_token = url
+                        .query_pairs()
+                        .find_map(|(key, value)| (key == "token").then(|| value.into_owned()));
+
+                    if url.path() == "/return"
+                        && returned_token.as_deref() == Some(expected_token.as_str())
+                    {
+                        focus_main_window(&app);
+                        browser_return_response(&mut stream);
+                        return;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(100));
+                }
+                Err(_) => return,
+            }
+        }
+    });
 }
 
 fn wait_for_authorization_code(
     listener: TcpListener,
     expected_state: String,
+    return_token: String,
+    app: tauri::AppHandle,
 ) -> Result<String, String> {
     listener
         .set_nonblocking(true)
         .map_err(|error| format!("Could not configure the OAuth callback listener: {error}"))?;
+
+    let port = listener
+        .local_addr()
+        .map_err(|error| format!("Could not read the OAuth callback address: {error}"))?
+        .port();
+    let return_url = format!("http://127.0.0.1:{port}/return?token={return_token}");
 
     let deadline = Instant::now() + CALLBACK_TIMEOUT;
     while Instant::now() < deadline {
@@ -124,7 +221,7 @@ fn wait_for_authorization_code(
                 let callback_url = match Url::parse(&format!("http://127.0.0.1{request_target}")) {
                     Ok(url) => url,
                     Err(_) => {
-                        browser_response(&mut stream, false);
+                        browser_response(&mut stream, false, None);
                         continue;
                     }
                 };
@@ -147,22 +244,25 @@ fn wait_for_authorization_code(
                 }
 
                 if code.is_none() && oauth_error.is_none() {
-                    browser_response(&mut stream, false);
+                    browser_response(&mut stream, false, None);
                     continue;
                 }
 
                 if returned_state.as_deref() != Some(expected_state.as_str()) {
-                    browser_response(&mut stream, false);
+                    browser_response(&mut stream, false, None);
                     return Err("Google OAuth returned an invalid state value.".to_string());
                 }
 
                 if let Some(error) = oauth_error {
-                    browser_response(&mut stream, false);
+                    browser_response(&mut stream, false, None);
                     let description = oauth_error_description.unwrap_or(error);
                     return Err(format!("Google authorization was not completed: {description}"));
                 }
 
-                browser_response(&mut stream, true);
+                browser_response(&mut stream, true, Some(&return_url));
+                start_return_listener(&listener, app.clone(), return_token.clone());
+                focus_main_window(&app);
+
                 return code
                     .ok_or_else(|| "Google OAuth did not return an authorization code.".to_string());
             }
@@ -193,6 +293,14 @@ async fn parse_token_response(response: reqwest::Response) -> Result<GoogleToken
             .clone()
             .or(payload.error.clone())
             .unwrap_or_else(|| format!("Google token request failed with HTTP {status}."));
+
+        if description.to_ascii_lowercase().contains("client_secret is missing") {
+            return Err(
+                "This Google Desktop OAuth client requires its client secret. Add GOOGLE_CLIENT_SECRET to .env.local, rebuild FocusCanvas, and try again."
+                    .to_string(),
+            );
+        }
+
         return Err(description);
     }
 
@@ -205,15 +313,20 @@ async fn exchange_authorization_code(
     redirect_uri: &str,
     verifier: &str,
 ) -> Result<GoogleTokenPayload, String> {
+    let mut form = vec![
+        ("client_id", client_id),
+        ("code", code),
+        ("code_verifier", verifier),
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", redirect_uri),
+    ];
+    if let Some(client_secret) = configured_client_secret() {
+        form.push(("client_secret", client_secret));
+    }
+
     let response = reqwest::Client::new()
         .post(TOKEN_ENDPOINT)
-        .form(&[
-            ("client_id", client_id),
-            ("code", code),
-            ("code_verifier", verifier),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect_uri),
-        ])
+        .form(&form)
         .send()
         .await
         .map_err(|error| format!("Could not reach Google's token endpoint: {error}"))?;
@@ -225,13 +338,18 @@ async fn refresh_access_token(
     client_id: &str,
     refresh_token: &str,
 ) -> Result<GoogleTokenPayload, String> {
+    let mut form = vec![
+        ("client_id", client_id),
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token),
+    ];
+    if let Some(client_secret) = configured_client_secret() {
+        form.push(("client_secret", client_secret));
+    }
+
     let response = reqwest::Client::new()
         .post(TOKEN_ENDPOINT)
-        .form(&[
-            ("client_id", client_id),
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
-        ])
+        .form(&form)
         .send()
         .await
         .map_err(|error| format!("Could not refresh Google authorization: {error}"))?;
@@ -345,6 +463,7 @@ pub async fn google_oauth_connect(
     let verifier = random_urlsafe(64);
     let challenge = pkce_challenge(&verifier);
     let state = random_urlsafe(32);
+    let return_token = random_urlsafe(24);
 
     let mut authorization_url = Url::parse(AUTH_ENDPOINT)
         .map_err(|error| format!("Could not build the Google authorization URL: {error}"))?;
@@ -371,11 +490,14 @@ pub async fn google_oauth_connect(
     let _ = open::that(&authorization_url);
 
     let expected_state = state.clone();
+    let callback_app = app.clone();
     let code = tauri::async_runtime::spawn_blocking(move || {
-        wait_for_authorization_code(listener, expected_state)
+        wait_for_authorization_code(listener, expected_state, return_token, callback_app)
     })
     .await
     .map_err(|error| format!("OAuth callback task failed: {error}"))??;
+
+    focus_main_window(&app);
 
     let token =
         exchange_authorization_code(client_id.trim(), &code, &redirect_uri, &verifier).await?;
@@ -393,7 +515,9 @@ pub async fn google_oauth_connect(
         .as_deref()
         .ok_or_else(|| "Google did not return an access token.".to_string())?;
     let account = fetch_account(access_token).await?;
-    connection_from_token(token, account)
+    let connection = connection_from_token(token, account)?;
+    focus_main_window(&app);
+    Ok(connection)
 }
 
 #[tauri::command]
@@ -414,6 +538,7 @@ pub fn google_oauth_open_url(url: String) -> Result<(), String> {
 
 #[tauri::command(rename_all = "camelCase")]
 pub async fn google_oauth_restore(
+    app: tauri::AppHandle,
     client_id: String,
 ) -> Result<Option<GoogleAuthConnection>, String> {
     if client_id.trim().is_empty() {
@@ -437,8 +562,10 @@ pub async fn google_oauth_restore(
         .as_deref()
         .ok_or_else(|| "Google did not return an access token.".to_string())?;
     let account = fetch_account(access_token).await?;
+    let connection = connection_from_token(token, account)?;
+    focus_main_window(&app);
 
-    connection_from_token(token, account).map(Some)
+    Ok(Some(connection))
 }
 
 #[tauri::command]

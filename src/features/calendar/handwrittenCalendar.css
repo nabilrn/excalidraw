@@ -1,0 +1,187 @@
+.handwritten-calendar {
+  margin-top: 28px;
+  padding: 14px 14px 10px;
+  border: 1px solid var(--border-dark);
+  border-radius: 4px 7px 5px 8px / 7px 4px 8px 5px;
+  background: #fffefb;
+  box-shadow: 2px 3px 0 rgb(0 0 0 / 0.035);
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.calendar-header h2 {
+  margin: 1px 0 0;
+  font-family: "Caveat", cursive;
+  font-size: calc(24px * var(--utility-font-scale, 1));
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+.calendar-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.calendar-controls button {
+  min-width: 27px;
+  height: 25px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--sketch-radius);
+  background: transparent;
+  color: var(--text-mid);
+  font-family: "Caveat", cursive;
+  font-size: calc(14px * var(--utility-font-scale, 1));
+  line-height: 1;
+}
+
+.calendar-controls button:hover {
+  border-color: var(--border);
+  background: var(--row-hover);
+  color: var(--text);
+}
+
+.calendar-controls .calendar-today {
+  min-width: 44px;
+  color: var(--muted);
+  font-size: calc(12px * var(--utility-font-scale, 1));
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekdays {
+  border-top: 1px dashed var(--border-dark);
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-weekdays span {
+  padding: 5px 4px 4px;
+  color: var(--muted);
+  font-size: calc(9px * var(--utility-font-scale, 1));
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.calendar-grid {
+  border-left: 1px solid var(--border);
+}
+
+.calendar-day {
+  position: relative;
+  min-width: 0;
+  min-height: 54px;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgb(255 255 255 / 0.45);
+}
+
+.calendar-day:nth-last-child(-n + 7) {
+  border-bottom-color: var(--border-dark);
+}
+
+.calendar-day-number {
+  position: relative;
+  z-index: 2;
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  margin: 3px 0 0 4px;
+  color: var(--text-mid);
+  font-family: "Caveat", cursive;
+  font-size: calc(15px * var(--utility-font-scale, 1));
+  font-weight: 600;
+  line-height: 1;
+}
+
+.calendar-day.is-outside {
+  background: #faf9f6;
+}
+
+.calendar-day.is-outside .calendar-day-number {
+  color: #d3d3d3;
+}
+
+.calendar-day.is-today .calendar-day-number::after {
+  position: absolute;
+  right: 1px;
+  bottom: -1px;
+  left: 1px;
+  height: 2px;
+  border-radius: 50%;
+  background: #111111;
+  content: "";
+  transform: rotate(-3deg);
+}
+
+.calendar-marker-x {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 42px;
+  overflow: visible;
+  fill: none;
+  opacity: 0.78;
+  pointer-events: none;
+  stroke: #c8261e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3.1;
+  transform: translate(-50%, -48%) rotate(-4deg);
+}
+
+.calendar-marker-x path:nth-child(2) {
+  opacity: 0.9;
+  stroke-width: 3.5;
+}
+
+.calendar-marker-x path:nth-child(3) {
+  opacity: 0.23;
+  stroke-width: 1.4;
+}
+
+.calendar-done-count {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  z-index: 2;
+  color: #b72b24;
+  font-family: "Caveat", cursive;
+  font-size: calc(9px * var(--utility-font-scale, 1));
+  font-weight: 700;
+  transform: rotate(-2deg);
+}
+
+.calendar-note {
+  margin: 7px 1px 0;
+  color: var(--faint);
+  font-family: "Caveat", cursive;
+  font-size: calc(12px * var(--utility-font-scale, 1));
+  text-align: right;
+  transform: rotate(-0.4deg);
+}
+
+@media (max-width: 900px) {
+  .handwritten-calendar {
+    padding-inline: 10px;
+  }
+
+  .calendar-day {
+    min-height: 48px;
+  }
+}

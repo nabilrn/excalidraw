@@ -14,6 +14,10 @@ export type TaskRecord = {
   completed_at: number | null;
 };
 
+function notifyTasksChanged() {
+  window.dispatchEvent(new Event("focuscanvas:tasks-changed"));
+}
+
 export async function listTasks(): Promise<TaskRecord[]> {
   const database = await getDatabase();
   return database.select<TaskRecord[]>(
@@ -65,6 +69,7 @@ export async function createTask(
     ],
   );
 
+  notifyTasksChanged();
   return task;
 }
 
@@ -78,6 +83,7 @@ export async function setTaskCompleted(id: string, completed: boolean) {
      WHERE id = ?`,
     [completed ? "completed" : "open", completed ? now : null, now, id],
   );
+  notifyTasksChanged();
 }
 
 export async function setTaskEstimatedMinutes(id: string, minutes: number) {
@@ -93,6 +99,7 @@ export async function setTaskEstimatedMinutes(id: string, minutes: number) {
 export async function deleteTask(id: string) {
   const database = await getDatabase();
   await database.execute("DELETE FROM tasks WHERE id = ?", [id]);
+  notifyTasksChanged();
 }
 
 export async function linkTaskToDiagram(

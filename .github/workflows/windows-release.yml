@@ -67,13 +67,29 @@ jobs:
             $tag = "v$($config.version)"
           }
 
+          $notesFile = ".github/release-notes/$tag.md"
+
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag $assets --clobber
+            if (Test-Path $notesFile) {
+              gh release edit $tag `
+                --title "FocusCanvas $tag" `
+                --notes-file $notesFile `
+                --latest
+            }
           } else {
-            gh release create $tag $assets `
-              --target "${{ github.sha }}" `
-              --title "FocusCanvas $tag" `
-              --generate-notes `
-              --latest
+            if (Test-Path $notesFile) {
+              gh release create $tag $assets `
+                --target "${{ github.sha }}" `
+                --title "FocusCanvas $tag" `
+                --notes-file $notesFile `
+                --latest
+            } else {
+              gh release create $tag $assets `
+                --target "${{ github.sha }}" `
+                --title "FocusCanvas $tag" `
+                --generate-notes `
+                --latest
+            }
           }

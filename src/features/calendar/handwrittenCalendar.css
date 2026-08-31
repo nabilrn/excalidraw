@@ -1,3 +1,26 @@
+.home-calendar-host.is-task-detail {
+  width: 100%;
+}
+
+.focus-empty-state.has-home-calendar {
+  gap: 5px;
+  padding: 28px;
+  opacity: 1;
+}
+
+.focus-empty-state.has-home-calendar > svg,
+.focus-empty-state.has-home-calendar > strong {
+  opacity: 0.3;
+}
+
+.home-calendar-host.is-empty-state {
+  width: min(720px, 92%);
+}
+
+.home-calendar-host.is-empty-state .handwritten-calendar {
+  margin-top: 10px;
+}
+
 .handwritten-calendar {
   margin-top: 28px;
   padding: 14px 14px 10px;
@@ -177,6 +200,10 @@
 }
 
 @media (max-width: 900px) {
+  .focus-empty-state.has-home-calendar {
+    padding-inline: 18px;
+  }
+
   .handwritten-calendar {
     padding-inline: 10px;
   }

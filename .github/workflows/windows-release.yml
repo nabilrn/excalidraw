@@ -32,6 +32,7 @@ jobs:
       - name: Build Windows installers
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: npm run desktop:build
 
       - name: Upload Windows installers

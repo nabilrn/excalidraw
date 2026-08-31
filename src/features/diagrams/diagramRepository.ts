@@ -37,6 +37,16 @@ export async function listDiagrams(): Promise<DiagramRecord[]> {
 
 export async function listCanvasGroups(): Promise<CanvasGroupRecord[]> {
   const database = await getDatabase();
+
+  // Every task owns a matching canvas group. INSERT OR IGNORE keeps manually
+  // renamed task groups intact while backfilling groups from older workspaces
+  // and restored Drive snapshots that predate this behavior.
+  await database.execute(
+    `INSERT OR IGNORE INTO canvas_groups (id, name, created_at, updated_at)
+     SELECT id, title, created_at, updated_at
+     FROM tasks`,
+  );
+
   return database.select<CanvasGroupRecord[]>(
     `SELECT id, name, created_at, updated_at
      FROM canvas_groups
@@ -77,6 +87,17 @@ export async function renameCanvasGroup(id: string, name: string) {
 
 export async function deleteCanvasGroup(id: string) {
   const database = await getDatabase();
+  const linkedTask = await database.select<{ id: string }[]>(
+    "SELECT id FROM tasks WHERE id = ? LIMIT 1",
+    [id],
+  );
+
+  if (linkedTask.length > 0) {
+    throw new Error(
+      "This group belongs to a task and is created automatically. Delete the task instead.",
+    );
+  }
+
   await database.execute(
     "UPDATE diagrams SET group_id = NULL, updated_at = ? WHERE group_id = ?",
     [Date.now(), id],
@@ -91,12 +112,38 @@ export async function createDiagram(
 ) {
   const database = await getDatabase();
   const now = Date.now();
+  let resolvedTaskId = taskId;
+  let resolvedGroupId = groupId;
+
+  if (groupId) {
+    const taskGroup = await database.select<{ id: string }[]>(
+      "SELECT id FROM tasks WHERE id = ? LIMIT 1",
+      [groupId],
+    );
+    if (taskGroup.length > 0) {
+      resolvedTaskId = groupId;
+    }
+  } else if (taskId) {
+    // Creating a canvas while a task is active places it in that task's group.
+    resolvedGroupId = taskId;
+  }
+
+  if (resolvedGroupId && resolvedGroupId === resolvedTaskId) {
+    await database.execute(
+      `INSERT OR IGNORE INTO canvas_groups (id, name, created_at, updated_at)
+       SELECT id, title, created_at, updated_at
+       FROM tasks
+       WHERE id = ?`,
+      [resolvedGroupId],
+    );
+  }
+
   const diagram: DiagramRecord = {
     id: crypto.randomUUID(),
     name,
     scene_data: EMPTY_SCENE,
-    task_id: taskId,
-    group_id: groupId,
+    task_id: resolvedTaskId,
+    group_id: resolvedGroupId,
     created_at: now,
     updated_at: now,
   };
@@ -170,6 +217,22 @@ export async function assignDiagramToGroup(
 ) {
   const database = await getDatabase();
   const updatedAt = Date.now();
+
+  if (groupId) {
+    const taskGroup = await database.select<{ id: string }[]>(
+      "SELECT id FROM tasks WHERE id = ? LIMIT 1",
+      [groupId],
+    );
+    if (taskGroup.length > 0) {
+      await database.execute(
+        `UPDATE diagrams
+         SET group_id = ?, task_id = ?, updated_at = ?
+         WHERE id = ?`,
+        [groupId, groupId, updatedAt, id],
+      );
+      return updatedAt;
+    }
+  }
 
   await database.execute(
     `UPDATE diagrams

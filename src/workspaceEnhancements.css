@@ -109,6 +109,43 @@
   text-align: center;
 }
 
+/* Keep the Tasks workspace on the same horizontal rhythm as Canvases. */
+.task-detail-view {
+  width: calc(100% - 48px);
+  max-width: none;
+  margin: 0 24px;
+  padding: 28px 0 48px;
+}
+
+.main-panel .home-calendar-host.is-task-detail {
+  width: 100%;
+}
+
+.main-panel .home-calendar-host.is-empty-state {
+  width: calc(100% - 48px);
+  max-width: none;
+}
+
+.main-panel .handwritten-calendar {
+  width: 100%;
+}
+
+.main-panel .calendar-day {
+  min-height: clamp(56px, 5.2vw, 76px);
+}
+
+@media (max-width: 900px) {
+  .task-detail-view {
+    width: calc(100% - 32px);
+    margin: 0 16px;
+    padding-top: 22px;
+  }
+
+  .main-panel .home-calendar-host.is-empty-state {
+    width: calc(100% - 32px);
+  }
+}
+
 @media (max-width: 760px) {
   .canvas-toolbar {
     grid-template-columns: auto minmax(120px, 1fr) auto;

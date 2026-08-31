@@ -5,10 +5,18 @@ import { listTasks, type TaskRecord } from "../tasks/taskRepository";
 import { HandwrittenCalendar } from "./HandwrittenCalendar";
 
 const HOST_ID = "focuscanvas-home-calendar-host";
+const EMPTY_STATE_CLASS = "has-home-calendar";
+
+function clearEmptyStateClass() {
+  document
+    .querySelectorAll<HTMLElement>(`.focus-empty-state.${EMPTY_STATE_CLASS}`)
+    .forEach((element) => element.classList.remove(EMPTY_STATE_CLASS));
+}
 
 function positionCalendarHost() {
   const mainPanel = document.querySelector<HTMLElement>(".main-panel");
   if (!mainPanel || mainPanel.querySelector(".canvases-view")) {
+    clearEmptyStateClass();
     document.getElementById(HOST_ID)?.remove();
     return null;
   }
@@ -23,6 +31,7 @@ function positionCalendarHost() {
     ".task-detail-view .progress-block",
   );
   if (progress) {
+    clearEmptyStateClass();
     host.className = "home-calendar-host is-task-detail";
     if (progress.nextElementSibling !== host) {
       progress.insertAdjacentElement("afterend", host);
@@ -32,6 +41,8 @@ function positionCalendarHost() {
 
   const emptyState = mainPanel.querySelector<HTMLElement>(".focus-empty-state");
   if (emptyState) {
+    clearEmptyStateClass();
+    emptyState.classList.add(EMPTY_STATE_CLASS);
     host.className = "home-calendar-host is-empty-state";
     if (host.parentElement !== emptyState) {
       emptyState.append(host);
@@ -39,6 +50,7 @@ function positionCalendarHost() {
     return host;
   }
 
+  clearEmptyStateClass();
   host.remove();
   return null;
 }
@@ -88,6 +100,7 @@ export function HomeCalendarPortal() {
 
     return () => {
       observer.disconnect();
+      clearEmptyStateClass();
       document.getElementById(HOST_ID)?.remove();
     };
   }, []);

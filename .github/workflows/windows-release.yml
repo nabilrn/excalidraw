@@ -29,9 +29,23 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Validate Google OAuth release credentials
+        shell: pwsh
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:VITE_GOOGLE_CLIENT_ID)) {
+            throw "VITE_GOOGLE_CLIENT_ID repository secret is missing."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:GOOGLE_CLIENT_SECRET)) {
+            throw "GOOGLE_CLIENT_SECRET repository secret is missing."
+          }
+          Write-Host "Google OAuth release credentials are configured."
+
       - name: Build Windows installers
         env:
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: npm run desktop:build
 

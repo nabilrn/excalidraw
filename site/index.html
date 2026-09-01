@@ -3,254 +3,174 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="FocusCanvas design documentation — a local-first desktop workspace with a compact monochrome UI and handwritten visual language." />
+  <meta name="description" content="FocusCanvas is a local-first Windows workspace for tasks, focus sessions, handwritten progress tracking, and Excalidraw canvases." />
   <meta name="theme-color" content="#ffffff" />
-  <title>FocusCanvas — Product & Design</title>
+  <title>FocusCanvas — Think, focus, finish.</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Patrick+Hand&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Patrick+Hand&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#top" aria-label="FocusCanvas home">FocusCanvas</a>
-    <nav class="topnav" aria-label="Page navigation">
-      <a href="#product">Product</a>
-      <a href="#principles">Principles</a>
-      <a href="#tokens">Tokens</a>
-      <a href="#patterns">Patterns</a>
+    <a class="brand" href="#top">FocusCanvas</a>
+    <nav class="topnav" aria-label="Primary navigation">
+      <a href="#features">Features</a>
+      <a href="#workspace">Workspace</a>
+      <a href="#sync">Sync</a>
     </nav>
     <div class="top-actions">
-      <span>local-first workspace</span>
-      <a class="button button-dark" href="https://github.com/nabilrn/excalidraw/releases/latest">Download</a>
+      <a class="text-link" href="https://github.com/nabilrn/excalidraw">GitHub</a>
+      <a class="button button-dark download-exe" href="https://github.com/nabilrn/excalidraw/releases/download/v0.2.1/FocusCanvas_0.2.1_x64-setup.exe">Download</a>
     </div>
   </header>
 
   <main id="top">
     <section class="hero shell">
       <div class="hero-copy">
-        <p class="eyebrow">PRODUCT + DESIGN DOCUMENTATION</p>
-        <h1>A focused desktop workspace that feels <em>drawn by hand</em>, not decorated by hand.</h1>
-        <p class="lede">FocusCanvas combines tasks, focus sessions, a handwritten completion calendar, and Excalidraw canvases inside a compact local-first Windows app. The visual system keeps professional desktop structure while allowing small human imperfections.</p>
+        <div class="version-pill"><span class="status-dot"></span><span class="release-version">v0.2.1</span> · Windows</div>
+        <h1>Your tasks, focus time, and visual thinking in <em>one quiet workspace.</em></h1>
+        <p class="lede">FocusCanvas combines a task list, focus timer, handwritten completion calendar, and Excalidraw canvases in one compact desktop app. Start locally. Sync to Google Drive only when you want backup and recovery.</p>
         <div class="hero-actions">
-          <a class="button button-dark" href="https://github.com/nabilrn/excalidraw/releases/latest">Download for Windows</a>
-          <a class="button" href="https://github.com/nabilrn/excalidraw">View source</a>
+          <a class="button button-dark button-large download-exe" href="https://github.com/nabilrn/excalidraw/releases/download/v0.2.1/FocusCanvas_0.2.1_x64-setup.exe">
+            <span>↓</span> Download for Windows
+          </a>
+          <a class="button button-large" href="#workspace">See how it works</a>
         </div>
-        <div class="hero-note"><span class="scribble-arrow">↳</span> SQLite first. Google Drive backup is optional.</div>
+        <div class="download-meta">
+          <span class="exe-meta">Windows x64 · EXE · 6.4 MB</span>
+          <span>·</span>
+          <a class="download-msi" href="https://github.com/nabilrn/excalidraw/releases/download/v0.2.1/FocusCanvas_0.2.1_x64_en-US.msi">MSI installer</a>
+          <span>·</span>
+          <a href="https://github.com/nabilrn/excalidraw/releases/latest">Release notes</a>
+        </div>
+        <p class="local-note"><span>↳</span> No account required. Your workspace lives in local SQLite.</p>
       </div>
 
-      <div class="app-preview" aria-label="FocusCanvas desktop UI preview">
-        <div class="preview-titlebar"><span>FocusCanvas</span><span>— □ ×</span></div>
-        <img src="./assets/tasks-calendar.png" alt="FocusCanvas Tasks view with focus timer and handwritten monthly calendar" />
+      <div class="hero-window" aria-label="FocusCanvas Tasks preview">
+        <div class="window-bar"><b>FocusCanvas</b><span>— □ ×</span></div>
+        <img src="./assets/tasks-calendar.png" alt="FocusCanvas Tasks view with focus timer and monthly calendar" />
+        <div class="window-note">tasks + timer + calendar, without tab switching</div>
       </div>
     </section>
 
-    <section id="product" class="section shell">
+    <section id="features" class="feature-strip">
+      <div class="shell feature-grid">
+        <article>
+          <span class="feature-icon">✓</span>
+          <h2>Tasks that stay visible</h2>
+          <p>Create work, estimate time, select an active task, and keep its context visible while you focus.</p>
+        </article>
+        <article>
+          <span class="feature-icon">45</span>
+          <h2>Built-in focus sessions</h2>
+          <p>Run sessions against the task you are actually doing, with recent history and accumulated focus minutes.</p>
+        </article>
+        <article>
+          <span class="feature-icon marker">×</span>
+          <h2>Progress you can see</h2>
+          <p>Finish a task and the calendar marks that day like a physical notebook instead of another analytics dashboard.</p>
+        </article>
+        <article>
+          <span class="feature-icon">◇</span>
+          <h2>Canvas for every task</h2>
+          <p>Each task automatically gets a canvas group so diagrams, notes, and rough thinking stay attached to the work.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="workspace" class="section shell">
       <div class="section-head">
-        <div>
-          <p class="eyebrow">01 — PRODUCT</p>
-          <h2>One workspace, two modes.</h2>
-        </div>
-        <p>Tasks answer <strong>what should I finish?</strong> Canvases answer <strong>what do I need to think through?</strong> The focus rail stays visible so time remains part of the workspace instead of becoming a separate timer app.</p>
+        <p class="eyebrow">THE WORKSPACE</p>
+        <h2>Move from “what do I need to do?” to “how do I solve it?” without leaving the app.</h2>
       </div>
 
-      <div class="product-grid">
-        <article class="product-card wide">
-          <div class="card-kicker">TASKS</div>
-          <h3>Plan, focus, mark the day.</h3>
-          <p>Estimated minutes, active-task context, session history, and a monthly calendar. Finishing a task leaves a red marker on the date — a physical-calendar habit translated into software.</p>
-          <figure class="screen-frame">
-            <img src="./assets/tasks-calendar.png" alt="Tasks workspace screenshot" />
-          </figure>
-        </article>
+      <article class="showcase showcase-tasks">
+        <div class="showcase-copy">
+          <span class="step">01</span>
+          <h3>Pick a task. Start the clock.</h3>
+          <p>The Tasks view keeps your active task, estimated duration, linked canvases, monthly completion calendar, and focus rail on one screen.</p>
+          <ul>
+            <li>Compact task sidebar</li>
+            <li>Pause, finish, or clear a focus session</li>
+            <li>Session history per task</li>
+            <li>Handwritten monthly completion markers</li>
+          </ul>
+        </div>
+        <figure class="screen-frame"><img src="./assets/tasks-calendar.png" alt="FocusCanvas Tasks screen" /></figure>
+      </article>
 
-        <article class="product-card wide">
-          <div class="card-kicker">CANVASES</div>
-          <h3>Every task gets a place to think.</h3>
-          <p>Task-backed groups are created automatically. Manual groups remain available for loose ideas, and each canvas opens into the full Excalidraw editor.</p>
-          <figure class="screen-frame">
-            <img src="./assets/canvases-groups.png" alt="Canvases workspace screenshot with task-backed groups" />
-          </figure>
-        </article>
+      <article class="showcase showcase-canvases">
+        <figure class="screen-frame"><img src="./assets/canvases-groups.png" alt="FocusCanvas Canvases screen with task-backed groups" /></figure>
+        <div class="showcase-copy">
+          <span class="step">02</span>
+          <h3>Open the thinking space behind the task.</h3>
+          <p>Canvases are organized into task-backed groups automatically. Open one and you get the full Excalidraw editor for diagrams, flows, notes, and rough problem solving.</p>
+          <ul>
+            <li>Task-backed groups created automatically</li>
+            <li>Manual groups for loose ideas</li>
+            <li>Search across canvases</li>
+            <li>Full Excalidraw editing experience</li>
+          </ul>
+        </div>
+      </article>
+    </section>
+
+    <section id="sync" class="sync-section">
+      <div class="shell sync-layout">
+        <div class="sync-copy">
+          <p class="eyebrow">LOCAL-FIRST + OPTIONAL SYNC</p>
+          <h2>Use it offline. Back it up when you want.</h2>
+          <p>FocusCanvas does not require an account to work. Your live workspace stays on your machine. Google Drive sync is an optional backup layer for recovery and moving to another device.</p>
+          <div class="privacy-note">
+            <strong>Private Drive storage</strong>
+            <span>FocusCanvas uses Google Drive's appDataFolder scope. The backup is hidden from normal My Drive files and is only used by the app.</span>
+          </div>
+        </div>
+        <div class="sync-flow" aria-label="FocusCanvas sync flow">
+          <div class="flow-card strong"><small>WORK HERE</small><b>Local SQLite</b><span>tasks · canvases · sessions</span></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-card"><small>OPTIONAL</small><b>Google Drive</b><span>private workspace backup</span></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-card"><small>NEW DEVICE</small><b>Restore</b><span>sign in once, recover workspace</span></div>
+        </div>
       </div>
     </section>
 
-    <section id="principles" class="section shell ruled-section">
+    <section class="why shell section">
       <div class="section-head compact">
-        <div>
-          <p class="eyebrow">02 — PRINCIPLES</p>
-          <h2>Desktop discipline, sketchbook character.</h2>
-        </div>
+        <p class="eyebrow">WHY FOCUSCANVAS</p>
+        <h2>Less app switching. Less workspace noise.</h2>
       </div>
-
-      <div class="principle-grid">
-        <article>
-          <span class="principle-number">01</span>
-          <h3>Structure first</h3>
-          <p>Panels, alignment, density, and hierarchy behave like a serious desktop tool. Handwriting never excuses weak layout.</p>
-        </article>
-        <article>
-          <span class="principle-number">02</span>
-          <h3>Mostly monochrome</h3>
-          <p>Black, white, and quiet grays carry almost everything. Color is reserved for semantic gestures such as the red completion marker.</p>
-        </article>
-        <article>
-          <span class="principle-number">03</span>
-          <h3>Local is the default</h3>
-          <p>The interface should remain useful without an account or network. Cloud sync is an optional recovery layer, not the identity of the product.</p>
-        </article>
-        <article>
-          <span class="principle-number">04</span>
-          <h3>Imperfection with limits</h3>
-          <p>Uneven radii, dashed rules, Caveat headings, and small scribbles add warmth. Controls still keep consistent hit areas and predictable behavior.</p>
-        </article>
+      <div class="why-grid">
+        <article><b>Local by default</b><p>Open the app and work. No mandatory account, workspace setup, or cloud dependency.</p></article>
+        <article><b>One desktop surface</b><p>Tasks, focus time, completion history, and visual thinking remain part of the same context.</p></article>
+        <article><b>Human, not gamified</b><p>The interface stays monochrome and compact. Progress is marked simply instead of wrapped in badges and streak mechanics.</p></article>
       </div>
     </section>
 
-    <section id="tokens" class="section shell">
-      <div class="section-head">
+    <section class="download-section">
+      <div class="shell download-card">
         <div>
-          <p class="eyebrow">03 — DESIGN TOKENS</p>
-          <h2>The FocusCanvas visual vocabulary.</h2>
+          <p class="eyebrow">LATEST WINDOWS RELEASE</p>
+          <h2>Put the workspace on your desktop.</h2>
+          <p class="download-description">Windows x64 · local-first · optional Google Drive backup</p>
         </div>
-        <p>These values mirror the desktop utility UI. Excalidraw itself remains visually independent; FocusCanvas tokens frame the workspace around it.</p>
-      </div>
-
-      <div class="token-layout">
-        <div class="token-group">
-          <h3>Color</h3>
-          <div class="swatches">
-            <button class="swatch" data-copy="#ffffff"><i style="--swatch:#ffffff"></i><span><b>Canvas</b><code>#ffffff</code></span></button>
-            <button class="swatch" data-copy="#f7f7f7"><i style="--swatch:#f7f7f7"></i><span><b>Sidebar</b><code>#f7f7f7</code></span></button>
-            <button class="swatch" data-copy="#e5e5e5"><i style="--swatch:#e5e5e5"></i><span><b>Border</b><code>#e5e5e5</code></span></button>
-            <button class="swatch" data-copy="#111111"><i style="--swatch:#111111"></i><span><b>Ink</b><code>#111111</code></span></button>
-            <button class="swatch" data-copy="#999999"><i style="--swatch:#999999"></i><span><b>Muted</b><code>#999999</code></span></button>
-            <button class="swatch marker-swatch" data-copy="#c83b32"><i style="--swatch:#c83b32"></i><span><b>Marker</b><code>#c83b32</code></span></button>
-          </div>
+        <div class="download-actions">
+          <a class="button button-dark button-large download-exe" href="https://github.com/nabilrn/excalidraw/releases/download/v0.2.1/FocusCanvas_0.2.1_x64-setup.exe">↓ Download <span class="release-version">v0.2.1</span> EXE</a>
+          <a class="button download-msi" href="https://github.com/nabilrn/excalidraw/releases/download/v0.2.1/FocusCanvas_0.2.1_x64_en-US.msi">Download MSI</a>
+          <a class="text-link" href="https://github.com/nabilrn/excalidraw">View source on GitHub →</a>
         </div>
-
-        <div class="token-group">
-          <h3>Typography</h3>
-          <div class="type-specimen">
-            <div class="type-row">
-              <span>Display / handwritten</span>
-              <strong class="type-caveat">Focus without friction.</strong>
-              <code>Caveat · 700</code>
-            </div>
-            <div class="type-row">
-              <span>Utility / body</span>
-              <strong class="type-patrick">Tasks, controls, labels, metadata.</strong>
-              <code>Patrick Hand · 400</code>
-            </div>
-            <div class="type-row">
-              <span>System fallback</span>
-              <strong class="type-system">Native platform chrome.</strong>
-              <code>system-ui</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="token-group">
-          <h3>Geometry</h3>
-          <div class="geometry-grid">
-            <div class="geometry-card"><span class="radius-demo"></span><b>Sketch radius</b><code>3px 5px 4px 6px / 5px 3px 6px 4px</code></div>
-            <div class="geometry-card"><span class="line-demo solid"></span><b>Structural border</b><code>1px solid #e5e5e5</code></div>
-            <div class="geometry-card"><span class="line-demo dashed"></span><b>Notebook rule</b><code>1px dashed #cccccc</code></div>
-            <div class="geometry-card"><span class="height-demo">40</span><b>Top bar</b><code>40px fixed</code></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="patterns" class="section shell ruled-section">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">04 — COMPONENT PATTERNS</p>
-          <h2>Small controls. Clear states.</h2>
-        </div>
-        <p>The UI avoids inflated cards and oversized controls. Most actions live inside thin borders, compact rows, and short handwritten labels.</p>
-      </div>
-
-      <div class="pattern-grid">
-        <article class="pattern-card">
-          <div class="pattern-demo button-demo">
-            <button class="demo-button dark">+ New canvas</button>
-            <button class="demo-button">Settings</button>
-            <button class="demo-button ghost">today</button>
-          </div>
-          <h3>Buttons</h3>
-          <p>Primary actions are black. Secondary actions are white with quiet borders. Text actions can drop the container entirely.</p>
-        </article>
-
-        <article class="pattern-card">
-          <div class="pattern-demo task-demo">
-            <div class="mini-heading"><span>TASKS</span><span>2 open</span></div>
-            <div class="mini-task"><i></i><span>leetcode hackerrank</span><em>90m</em></div>
-            <div class="mini-task active"><i></i><span>ielts prep</span><em>90m</em></div>
-          </div>
-          <h3>Selection</h3>
-          <p>Active rows use a faint wash plus a hard black edge. The state is visible without introducing a new accent color.</p>
-        </article>
-
-        <article class="pattern-card">
-          <div class="pattern-demo marker-demo">
-            <span class="date-number">31</span>
-            <span class="marker-x" aria-hidden="true"></span>
-            <small>finished a task</small>
-          </div>
-          <h3>Completion marker</h3>
-          <p>Red is treated like a physical marker stroke. It means “this day counted,” not a generic brand color.</p>
-        </article>
-
-        <article class="pattern-card">
-          <div class="pattern-demo group-demo">
-            <div class="group-title"><span>ielts prep</span><small>2</small><i></i></div>
-            <div class="mini-canvas"><div></div><b>Simple Present</b><small>Aug 31</small></div>
-            <div class="mini-canvas add"><strong>+</strong><span>New canvas</span></div>
-          </div>
-          <h3>Task-backed groups</h3>
-          <p>Tasks and visual work stay connected. A task automatically creates its canvas group, while manual groups still support loose organization.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="section shell architecture">
-      <div class="section-head compact">
-        <div>
-          <p class="eyebrow">05 — PRODUCT ARCHITECTURE</p>
-          <h2>Local work first. Cloud recovery second.</h2>
-        </div>
-      </div>
-      <div class="flow" aria-label="FocusCanvas data flow">
-        <div class="flow-node"><b>User action</b><span>task · timer · canvas</span></div>
-        <span class="flow-arrow">→</span>
-        <div class="flow-node strong"><b>Local SQLite</b><span>authoritative working copy</span></div>
-        <span class="flow-arrow">→</span>
-        <div class="flow-node"><b>Sync manager</b><span>compare revisions</span></div>
-        <span class="flow-arrow">→</span>
-        <div class="flow-node"><b>Drive appDataFolder</b><span>hidden workspace backup</span></div>
-      </div>
-      <p class="flow-note">No account is required to start working. Drive uses the private app-data scope and is intentionally invisible inside My Drive.</p>
-    </section>
-
-    <section class="cta shell">
-      <div>
-        <p class="eyebrow">FOCUSCANVAS</p>
-        <h2>Keep the workspace quiet.<br />Keep the work visible.</h2>
-      </div>
-      <div class="cta-actions">
-        <a class="button button-dark" href="https://github.com/nabilrn/excalidraw/releases/latest">Download latest release</a>
-        <a class="button" href="https://github.com/nabilrn/excalidraw">GitHub repository</a>
       </div>
     </section>
   </main>
 
   <footer class="footer shell">
     <span class="brand">FocusCanvas</span>
-    <span>Local-first desktop utility · Windows · Tauri · React · SQLite · Excalidraw</span>
+    <span>Local-first focus workspace for Windows.</span>
+    <a href="https://github.com/nabilrn/excalidraw/releases/latest">Releases</a>
   </footer>
 
-  <div class="toast" role="status" aria-live="polite">Copied</div>
   <script src="./app.js" defer></script>
 </body>
 </html>

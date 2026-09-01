@@ -20,21 +20,39 @@ const observer = new IntersectionObserver(
 
 sections.forEach((section) => observer.observe(section));
 
-const toast = document.querySelector('.toast');
-let toastTimer;
+const formatMb = (bytes) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
-document.querySelectorAll('[data-copy]').forEach((button) => {
-  button.addEventListener('click', async () => {
-    const value = button.dataset.copy;
-    try {
-      await navigator.clipboard.writeText(value);
-      if (!toast) return;
-      toast.textContent = `Copied ${value}`;
-      toast.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('show'), 1200);
-    } catch {
-      // Clipboard access can be blocked in some embedded browsers; the token remains visible.
+async function hydrateLatestRelease() {
+  try {
+    const response = await fetch('https://api.github.com/repos/nabilrn/excalidraw/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) return;
+
+    const release = await response.json();
+    const exe = release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.exe'));
+    const msi = release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.msi'));
+
+    document.querySelectorAll('.release-version').forEach((node) => {
+      node.textContent = release.tag_name || node.textContent;
+    });
+
+    if (exe) {
+      document.querySelectorAll('.download-exe').forEach((link) => {
+        link.href = exe.browser_download_url;
+      });
+      const meta = document.querySelector('.exe-meta');
+      if (meta) meta.textContent = `Windows x64 · EXE · ${formatMb(exe.size)}`;
     }
-  });
-});
+
+    if (msi) {
+      document.querySelectorAll('.download-msi').forEach((link) => {
+        link.href = msi.browser_download_url;
+      });
+    }
+  } catch {
+    // Static v0.2.1 URLs remain valid if GitHub's public API is unavailable.
+  }
+}
+
+hydrateLatestRelease();

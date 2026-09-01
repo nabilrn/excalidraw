@@ -47,9 +47,11 @@ img { display: block; max-width: 100%; }
   letter-spacing: -.03em;
 }
 .topnav { display: flex; gap: 4px; align-items: center; }
-.topnav a { padding: 6px 10px; border: 1px solid transparent; border-radius: var(--sketch-radius); color: var(--text); font-size: 12px; }
+.topnav a { padding: 6px 10px; border: 1px solid transparent; border-radius: var(--sketch-radius); color: var(--text); font-size: 14px; }
 .topnav a:hover, .topnav a.is-active { border-color: var(--border); background: var(--panel); color: var(--ink); }
 .top-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.top-actions .button { font-size: 13px; }
+.top-actions .text-link { font-size: 14px; }
 .text-link { color: var(--text); font-size: 12px; }
 .text-link:hover { color: var(--ink); }
 

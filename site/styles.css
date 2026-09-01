@@ -32,7 +32,7 @@ img { display: block; max-width: 100%; }
   z-index: 50;
   top: 0;
   display: grid;
-  min-height: 44px;
+  min-height: 50px;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 0 14px;
@@ -40,6 +40,7 @@ img { display: block; max-width: 100%; }
   background: rgb(255 255 255 / 0.95);
   backdrop-filter: blur(12px);
 }
+.topbar .brand { font-size: 23px; }
 .brand {
   font-family: "Caveat", cursive;
   font-size: 19px;
@@ -47,11 +48,11 @@ img { display: block; max-width: 100%; }
   letter-spacing: -.03em;
 }
 .topnav { display: flex; gap: 4px; align-items: center; }
-.topnav a { padding: 6px 10px; border: 1px solid transparent; border-radius: var(--sketch-radius); color: var(--text); font-size: 14px; }
+.topnav a { padding: 7px 12px; border: 1px solid transparent; border-radius: var(--sketch-radius); color: var(--ink); font-size: 16px; }
 .topnav a:hover, .topnav a.is-active { border-color: var(--border); background: var(--panel); color: var(--ink); }
 .top-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
-.top-actions .button { font-size: 13px; }
-.top-actions .text-link { font-size: 14px; }
+.top-actions .button { font-size: 14px; }
+.top-actions .text-link { color: var(--ink); font-size: 15px; }
 .text-link { color: var(--text); font-size: 12px; }
 .text-link:hover { color: var(--ink); }
 
@@ -75,7 +76,7 @@ img { display: block; max-width: 100%; }
 
 .hero {
   display: grid;
-  min-height: calc(100vh - 44px);
+  min-height: calc(100vh - 50px);
   grid-template-columns: minmax(0, .8fr) minmax(520px, 1.2fr);
   align-items: center;
   gap: 54px;

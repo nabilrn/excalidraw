@@ -4,7 +4,7 @@ A local-first Windows desktop workspace for tasks, focus sessions, and visual th
 
 FocusCanvas keeps the working copy in local SQLite and adds an optional Google Drive backup so the workspace can be recovered on another device.
 
-[Download the latest Windows release](https://github.com/nabilrn/excalidraw/releases/latest)
+[Download the latest Windows release](https://github.com/nabilrn/excalidraw/releases/latest) · [Product & design documentation](https://nabilrn.github.io/excalidraw/)
 
 ## Tasks & handwritten calendar
 

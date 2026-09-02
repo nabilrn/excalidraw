@@ -106,6 +106,7 @@ export async function setTaskCompleted(id: string, completed: boolean) {
     [completed ? "completed" : "open", completed ? now : null, now, id],
   );
   notifyTasksChanged();
+  notifyWorkspaceChanged();
 }
 
 export async function setTaskEstimatedMinutes(id: string, minutes: number) {

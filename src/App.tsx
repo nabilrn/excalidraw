@@ -1097,6 +1097,12 @@ export default function App() {
                     {focus.session && (
                       <button
                         className="focus-outline"
+                        disabled={remainingSeconds > 0}
+                        title={
+                          remainingSeconds > 0
+                            ? "Available when the timer reaches 00:00"
+                            : "Finish focus session"
+                        }
                         onClick={() => void focus.finish()}
                       >
                         Finish

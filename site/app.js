@@ -51,7 +51,7 @@ async function hydrateLatestRelease() {
       });
     }
   } catch {
-    // Static v0.2.1 URLs remain valid if GitHub's public API is unavailable.
+    // Static v0.2.2 URLs remain valid if GitHub's public API is unavailable.
   }
 }
 

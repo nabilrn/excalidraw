@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   getElapsedSeconds,
@@ -38,7 +38,6 @@ export function FocusTimerDock({
   onCancel,
 }: Props) {
   const [now, setNow] = useState(Date.now());
-  const completedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!session || session.status !== "running") {
@@ -59,23 +58,6 @@ export function FocusTimerDock({
       session.planned_seconds - getElapsedSeconds(session, now),
     );
   }, [now, session]);
-
-  useEffect(() => {
-    if (
-      session?.status === "running" &&
-      remainingSeconds === 0 &&
-      completedRef.current !== session.id
-    ) {
-      completedRef.current = session.id;
-      void onFinish();
-    }
-  }, [onFinish, remainingSeconds, session]);
-
-  useEffect(() => {
-    if (!session) {
-      completedRef.current = null;
-    }
-  }, [session]);
 
   if (!session) {
     return null;

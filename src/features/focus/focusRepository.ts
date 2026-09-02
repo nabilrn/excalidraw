@@ -131,6 +131,12 @@ async function closeSession(
 }
 
 export async function finishFocusSession(session: FocusSessionRecord) {
+  if (getElapsedSeconds(session) < session.planned_seconds) {
+    throw new Error(
+      "Finish is only valid after the focus timer reaches 00:00.",
+    );
+  }
+
   await closeSession(session, "completed");
 }
 

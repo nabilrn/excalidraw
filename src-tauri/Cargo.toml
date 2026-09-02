@@ -1,6 +1,6 @@
 [package]
 name = "focuscanvas"
-version = "0.2.2"
+version = "0.2.3"
 description = "Local-first focus workspace with Excalidraw, tasks, and timer"
 authors = ["Nabil"]
 edition = "2021"

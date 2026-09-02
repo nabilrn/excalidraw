@@ -72,7 +72,9 @@ export function useFocusTimer() {
       setHistoryRevision((value) => value + 1);
     } catch (cause) {
       console.error(cause);
-      setError("Could not finish the focus session.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not finish the focus session.",
+      );
       return;
     }
 

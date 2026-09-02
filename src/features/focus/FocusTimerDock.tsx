@@ -63,6 +63,8 @@ export function FocusTimerDock({
     return null;
   }
 
+  const canFinish = remainingSeconds === 0;
+
   return (
     <aside className="focus-timer-dock" aria-live="polite">
       <div className="focus-timer-copy">
@@ -78,7 +80,13 @@ export function FocusTimerDock({
         ) : (
           <button onClick={() => void onPause()}>Pause</button>
         )}
-        <button onClick={() => void onFinish()}>Finish</button>
+        <button
+          disabled={!canFinish}
+          title={canFinish ? "Finish focus session" : "Available at 00:00"}
+          onClick={() => void onFinish()}
+        >
+          Finish
+        </button>
         <button className="danger-text" onClick={() => void onCancel()}>
           Cancel
         </button>

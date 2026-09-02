@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { setTaskCompleted } from "../tasks/taskRepository";
 import {
   cancelFocusSession,
   finishFocusSession,
@@ -62,9 +63,29 @@ export function useFocusTimer() {
     if (!session) {
       return;
     }
-    await finishFocusSession(session);
-    setSession(null);
-    setHistoryRevision((value) => value + 1);
+
+    const finishedSession = session;
+    try {
+      setError(null);
+      await finishFocusSession(finishedSession);
+      setSession(null);
+      setHistoryRevision((value) => value + 1);
+    } catch (cause) {
+      console.error(cause);
+      setError("Could not finish the focus session.");
+      return;
+    }
+
+    if (finishedSession.task_id) {
+      try {
+        await setTaskCompleted(finishedSession.task_id, true);
+      } catch (cause) {
+        console.error(cause);
+        setError(
+          "Focus session was saved, but task progress could not be updated.",
+        );
+      }
+    }
   }, [session]);
 
   const cancel = useCallback(async () => {
